@@ -1,0 +1,15 @@
+# Python and notebook caches
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
+
+# Logs and local editor files
+*.log
+.vscode/
+
+# Generated preprocessing data
+*.root
+*.h5
+*.hdf5
+*.npy
+*.npz

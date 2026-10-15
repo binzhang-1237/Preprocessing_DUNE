@@ -1,0 +1,10 @@
+first 5 column IDs
+rund subrun slice
+plane cell cell-energy particle ID, neutrino energy
+true energy, 
+each event, all hits, hit energy, neutrino energy, shower energy, view0, view1
+151x141
+
+Event ID, U-plane, V-plane, Z-plane, peakT, wireID, deposited charge, true-neutrino energy, electron shower energy
+
+shower level and hit level

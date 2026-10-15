@@ -1,0 +1,25 @@
+BEGIN_PROLOG 
+
+regcnnvtx_analysistree:
+{
+  module_type:        "RegCNNVertexAna"
+  MCGenModuleLabel:   "generator"
+  RegCNNModuleLabel:  "regcnneval"
+  HitsModuleLabel:    "linecluster"
+  EnergyRecoNueLabel: "energyreconue"
+  PandoraNuVertexModuleLabel: "pandora"
+
+  RegCNNResultLabel:  "regcnnresult"
+  RegCNNVtxResultLabel:  "regcnnvtxresult"
+  RegCNNVtx1ststepResultLabel:  "regcnnvtx1stresult"
+  RegCNNVtx2ndstepResultLabel:  "regcnnvtx2ndresult"
+  RegCNNVtxResult2Label:  "regcnnvtxresult2"
+
+  RegCNNVtxModuleLabel:  "regcnnvtxresult"
+  RegCNNVtx1ststepModuleLabel:  "regcnnvtx1stresult"
+  RegCNNVtx2ndstepModuleLabel:  "regcnnvtx2ndresult"
+  RegCNNVtxModule2Label:  "regcnnvtxresult2"
+
+}
+
+END_PROLOG
