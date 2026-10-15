@@ -1,3 +1,0 @@
-[submodule "dune_pixelmap_generator"]
-	path = dune_pixelmap_generator
-	url = git@github.com:BenJarg/dune_pixelmap_generator.git

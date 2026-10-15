@@ -1,0 +1,278 @@
+#include <iostream>
+#include <TStopwatch.h>
+#include <TMath.h>
+#include <TFile.h>
+#include <TChain.h>
+#include <TF1.h>
+#include <TH1.h>
+#include <TH2.h>
+#include <TCanvas.h>
+#include <TROOT.h>
+#include <TStyle.h>
+
+float convert_to_energy(float charge){
+	float fIntShwEnergy = -0.01;
+	float fGradShwEnergy = 0.99;
+	return ((charge * (1.0 / 0.63) * (23.6e-9 / 4.966e-3)) - fIntShwEnergy) / fGradShwEnergy ;
+
+}
+
+void Plot_N_pm_from_Pixel_numu(int inevt = -1, char ctest=0){ 
+	gStyle -> SetOptStat(111111);
+	//gStyle -> SetOptFit(1);
+        //gStyle->SetOptTitle(0);
+        //gStyle->SetOptStat(0);
+        gStyle->SetHistLineWidth(2);
+        gStyle->SetHistMinimumZero();
+        gStyle->SetFrameLineWidth(2);
+        //gStyle->SetPadGridX(1);
+        //gStyle->SetPadGridY(1);
+        gStyle->SetPadTickX(1);
+        gStyle->SetPadTickY(1);
+        //gStyle->SetPadLeftMargin(0.11);
+        //gStyle->SetPadRightMargin(0.05);
+        gStyle->SetPadLeftMargin(0.13);
+        gStyle->SetPadRightMargin(0.09);
+        gStyle->SetPadBottomMargin(0.13);
+        gStyle->SetPadTopMargin(0.09);
+
+	TStopwatch gtimer;
+	gtimer.Start();
+	
+	//TString filename ("../make_text/numu_pm_176.root");
+	//TString filename ("../make_text/numu_pm_402.root");
+	TChain ch("pixelmap");
+	//ch.Add("../make_text/numu_pm_402.root");
+	ch.Add("../make_text/numu_pm_[0-9][0-9][0-9].root");
+	//ch.Add("../make_text/numu_pm_402_nofid.root");
+
+	int b_ievt, b_tpc_id, b_iplane;
+	int b_rel_wire, b_rel_tick, b_mean_wire, b_mean_tick;
+	int b_trueVtxWire, b_trueVtxTick;
+	float b_shw_tot_energy, b_wire_charge, b_wire_corrcharge, b_hit_tot_energy;
+	float b_trueEnergy, b_trueVertex_X, b_trueVertex_Y, b_trueVertex_Z;
+	float b_truePx, b_truePy, b_truePz;
+	int b_trueVtxGlobalWire, b_trueVtxGlobalTick;
+	int b_pfVtxGlobalWire, b_pfVtxGlobalTick;
+	int b_trueTPCin;
+	int b_pmidx;
+	int b_rebin_wire, b_rebin_tick;
+	int b_nbins_wire, b_nbins_tick;
+
+	ch.SetBranchAddress("ievent",            &b_ievt);
+	ch.SetBranchAddress("pmidx",             &b_pmidx);
+
+	ch.SetBranchAddress("tpc_id",            &b_tpc_id);
+	ch.SetBranchAddress("iplane",            &b_iplane);
+        ch.SetBranchAddress("rel_wire",          &b_rel_wire);
+        ch.SetBranchAddress("rel_tick",          &b_rel_tick);
+        ch.SetBranchAddress("mean_wire",         &b_mean_wire);
+        ch.SetBranchAddress("mean_tick",         &b_mean_tick);
+        ch.SetBranchAddress("rebin_wire",        &b_rebin_wire);
+        ch.SetBranchAddress("rebin_tick",        &b_rebin_tick);
+        ch.SetBranchAddress("nbins_wire",        &b_nbins_wire);
+        ch.SetBranchAddress("nbins_tick",        &b_nbins_tick);
+
+        ch.SetBranchAddress("trueVtxWire",       &b_trueVtxWire);
+        ch.SetBranchAddress("trueVtxTick",       &b_trueVtxTick);
+        ch.SetBranchAddress("shw_tot_energy",    &b_shw_tot_energy);
+        ch.SetBranchAddress("wire_charge",       &b_wire_charge);
+        ch.SetBranchAddress("wire_corrcharge",   &b_wire_corrcharge);
+        ch.SetBranchAddress("hit_tot_energy",    &b_hit_tot_energy);
+        ch.SetBranchAddress("trueEnergy",        &b_trueEnergy);
+        ch.SetBranchAddress("trueVertex_X",      &b_trueVertex_X);
+        ch.SetBranchAddress("trueVertex_Y",      &b_trueVertex_Y);
+        ch.SetBranchAddress("trueVertex_Z",      &b_trueVertex_Z);
+        ch.SetBranchAddress("truePx",            &b_truePx);
+        ch.SetBranchAddress("truePy",            &b_truePy);
+        ch.SetBranchAddress("truePz",            &b_truePz);
+
+        ch.SetBranchAddress("trueVtxGlobalWire",   &b_trueVtxGlobalWire);
+        ch.SetBranchAddress("trueVtxGlobalTick",   &b_trueVtxGlobalTick);
+        ch.SetBranchAddress("pfVtxGlobalWire",     &b_pfVtxGlobalWire);
+        ch.SetBranchAddress("pfVtxGlobalTick",     &b_pfVtxGlobalTick);
+
+        ch.SetBranchAddress("trueTPCin",            &b_trueTPCin);
+
+	int entries = ch.GetEntries();
+	// ticks 0 - 4492, each tick 0.5 us/tick
+	// drift velocity 1.6mm/us -> 0.8mm/tick -> 6 ticks -> 4.8 mm
+	// wire ptich 4.67mm and 4.79 mm
+
+	// number of wires Z: 480, X and Y: 400.
+ 	// X and Y plane has 3 indexes per wire
+
+
+	int coarse = 6;	
+	int xnbins = 400;
+	int ynbins = 1680/6;
+	//int ynbins = 1680;
+	//int xnbins = 480;
+	//int ynbins = 4494;
+
+	int xmax = xnbins/2;
+	int ymax = ynbins/2;
+
+	TH1F *h1_npm[3];
+	h1_npm[0] = new TH1F("h1_npm_U", "U Plane; N PM", 37, 0, 37);
+	h1_npm[1] = new TH1F("h1_npm_V", "V Plane; N PM", 37, 0, 37);
+	h1_npm[2] = new TH1F("h1_npm_Z", "Z Plane; N PM", 37, 0, 37);
+
+
+	TH1F *h1_energy_ref = new TH1F("h1_eng_ref", "Reco E with Z;(RecoE-TrueE)/TrueE", 100, -1.1, 1.1);
+	TH1F *h1_energy_map = new TH1F("h1_eng_map", "Using Same Pixel Map Reco E with Z;RecoE/TrueE", 100, -1.1, 1.1);
+	TH1F *h1_energy[3];
+	TH1F *h1_energy_pos[3];
+	h1_energy[0] = new TH1F("h1_eng_U", ";(Sum E-TrueE)/TrueE", 100, -1.1, 1.1);
+	h1_energy[1] = new TH1F("h1_eng_V", ";(Sum E-TrueE)/TrueE", 100, -1.1, 1.1);
+	h1_energy[2] = new TH1F("h1_eng_Z", ";(Sum E-TrueE)/TrueE", 100, -1.1, 1.1);
+	h1_energy_pos[0] = new TH1F("h1_eng_U_pos", "Add pos charge only;(Sum E-TrueE)/TrueE", 100, -1.1, 1.1);
+	h1_energy_pos[1] = new TH1F("h1_eng_V_pos", "Add pos charge only;(Sum E-TrueE)/TrueE", 100, -1.1, 1.1);
+	h1_energy_pos[2] = new TH1F("h1_eng_Z_pos", "Add pos charge only;(Sum E-TrueE)/TrueE", 100, -1.1, 1.1);
+
+	TH2F *h2_energy[3];
+	h2_energy[0] = new TH2F("h2_eng_U", ";True E (GeV) ;(Sum E-TrueE)/TrueE", 100, 0, 7, 100, -1.1, 1.1);
+	h2_energy[1] = new TH2F("h2_eng_V", ";True E (GeV) ;(Sum E-TrueE)/TrueE", 100, 0, 7, 100, -1.1, 1.1);
+	h2_energy[2] = new TH2F("h2_eng_Z", ";True E (GeV) ;(Sum E-TrueE)/TrueE", 100, 0, 7, 100, -1.1, 1.1);
+
+
+	TCanvas *ccc = new TCanvas("ccc", "Pixel Maps", 10, 10, 1200, 400);
+	ccc->Divide(3, 1);
+
+
+	//int xnbins2 = 1160; // maximum number of wire ID +?
+	int xnbins2 = 2880; // maximum number of wire ID +?
+	int ynbins2 = 4493; // maximum number of tick + 1
+
+	// collect first hit info
+	ch.GetEntry(0);
+	int temp_ievent = b_ievt;
+	bool first_hit = true;
+	float temp_true_energy = b_trueEnergy;
+	int max_npm[3] = {0, 0, 0};
+
+	float sum_charge[3] = {0, 0, 0};
+	float sum_charge_pos[3] = {0, 0, 0};
+	std::cout << "==> " << entries << ", " << temp_ievent << std::endl;
+	for (int ie = 0; ie < entries; ie++){
+		//if (ie%1000000 == 0) std::cout << ie << " " << b_ievt << std::endl;
+		if (ie%1000000 == 0) std::cout << ie << " " << b_ievt << " : " << (float)ie/(float)entries*100. << " " << std::endl;
+		ch.GetEntry(ie);
+		//if (b_trueTPCin == 0) continue;
+		//cout << ievt << endl;
+
+		if (TMath::IsNaN(b_wire_corrcharge))
+			std::cout << b_ievt << " " << b_iplane << " " << b_wire_corrcharge << std::endl;
+
+		if (temp_ievent != b_ievt){
+			for (int ip = 0; ip < 3; ip++){
+				h1_npm[ip] -> Fill(max_npm[ip]-1);
+				float sum_eng = convert_to_energy(sum_charge[ip]);
+				float sum_eng_pos = convert_to_energy(sum_charge_pos[ip]);
+				h1_energy[ip] -> Fill((sum_eng-temp_true_energy)/temp_true_energy);
+				h1_energy_pos[ip] -> Fill((sum_eng_pos-temp_true_energy)/temp_true_energy);
+
+				h2_energy[ip] -> Fill(temp_true_energy, (sum_eng-temp_true_energy)/temp_true_energy);
+
+				sum_charge[ip] = 0;
+				sum_charge_pos[ip] = 0;
+				max_npm[ip] = 0;
+			}
+
+			/*	
+			float sum_chg_map = 0.0;
+			for (int ix = 0; ix < xnbins; ix++){
+			for (int iy = 0; iy < ynbins; iy++){
+				float chg_temp = h2_evt_dis[2]->GetBinContent(ix+1, iy+1);
+				if (chg_temp == 0) continue;
+				if (chg_temp < -600) continue;
+				sum_chg_map += chg_temp;
+			}} // end of ix and iy
+			float sum_eng_map = convert_to_energy(sum_chg_map);
+			h1_energy_map->Fill((sum_eng_map-b_trueEnergy)/b_trueEnergy);
+			*/
+
+
+			first_hit = true;
+			temp_ievent = b_ievt;
+			temp_true_energy = b_trueEnergy;
+
+		} // end of save data
+
+		sum_charge[b_iplane] += b_wire_corrcharge;
+		if (b_wire_corrcharge>0) sum_charge_pos[b_iplane] += b_wire_corrcharge;
+
+
+		// to use event level info
+		if (first_hit == true && b_iplane == 2){
+			h1_energy_ref->Fill((b_hit_tot_energy-b_trueEnergy)/b_trueEnergy);
+			first_hit = false;
+		}
+		if (max_npm[b_iplane] < b_pmidx){
+			max_npm[b_iplane] = b_pmidx;
+		}
+	} // end of ie
+	// This loop miss last event.
+
+	TCanvas *can1 = new TCanvas("can1", "RecoE / True E with Z plane (cal.)", 400, 0, 400, 400);
+	TF1 *ff_can1 = new TF1("ff_can1", "gaus", -0.3, 0.3);
+	ff_can1->SetParameters(100, 0, 1);
+	h1_energy_ref->Fit("ff_can1", "R");
+	h1_energy_ref->Draw("hist");
+	ff_can1->Draw("same");
+	ff_can1->SetLineColor(2);
+	gPad->Update();
+
+	TCanvas *can2 = new TCanvas("can2", "RecoE / True E with Z plane", 400, 0, 400, 400);
+	h1_energy_map->Draw("hist");
+	gPad->Update();
+
+	TCanvas *ccc1 = new TCanvas("ccc1", "Sum Charge / True E", 0, 0, 1200, 400);
+	TCanvas *ccc2 = new TCanvas("ccc2", "Sum Charge / True E (Sum Pos. Charge only)", 0, 0, 1200, 400);
+	ccc1 -> Divide(3, 1);
+	ccc2 -> Divide(3, 1);
+	TF1 *f1[3];
+	char buf[10];
+	for (int ip = 0; ip < 3; ip++){
+		sprintf(buf, "f1_%d", ip);
+		f1[ip] = new TF1(buf, "gaus", -0.3, 0.3);
+		f1[ip]->SetParameters(100, 0, 1);
+		ccc1->cd(ip+1);
+		h1_energy[ip] -> Fit(buf, "R");
+		h1_energy[ip] -> Draw("hist");
+		f1[ip]->SetLineColor(2);
+		f1[ip]->Draw("same");
+		gPad->Update();
+		ccc2->cd(ip+1);
+		h1_energy_pos[ip] -> Draw("hist");
+		gPad->Update();
+	}
+
+
+	TCanvas *ccc3 = new TCanvas("ccc3", "Sum Charge / True E", 0, 0, 1200, 400);
+	ccc3->Divide(3, 1);
+	ccc3->cd(1);
+	h2_energy[0]->Draw("colz");
+	ccc3->cd(2);
+	h2_energy[1]->Draw("colz");
+	ccc3->cd(3);
+	h2_energy[2]->Draw("colz");
+	gPad->Update();
+
+	TCanvas *ccc4 = new TCanvas("ccc4", "Number of Trk Pixel Maps", 0, 0, 1200, 400);
+	ccc4->Divide(3, 1);
+	for (int ip = 0; ip < 3; ip++){
+		ccc4->cd(ip+1);
+		h1_npm[ip]->Draw("hist");
+	}
+	//TFile *output = new TFile("output_plots.root", "recreate");
+	//can1->Write();
+	//can2->Write();
+	//ccc1->Write();
+	//ccc2->Write();
+	//output->Close();
+
+	gtimer.Stop();
+	std::cout<<"running time "<<gtimer.CpuTime()<<std::endl;
+}
+      

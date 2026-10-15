@@ -1,0 +1,119 @@
+<?xml version="1.0"?>
+
+<!DOCTYPE project [
+<!ENTITY release "v08_14_00">
+<!ENTITY file_type "mc">
+<!ENTITY run_type "physics">
+<!ENTITY name "regcvn_reco_dune10kt_1x2x6">
+<!ENTITY tag "devel">
+]>
+
+<job>
+
+<project name="&name;_myana">
+  <group>dune</group>
+
+  <!-- Project size -->
+  <numevents>10000000</numevents>
+
+  <!-- Operating System -->
+  <os>SL6</os>
+
+  <!-- Batch resources -->
+  <!-- <resource>DEDICATED,OPPORTUNISTIC</resource> -->
+  <resource>OPPORTUNISTIC</resource>
+
+  <!-- metadata parameters -->
+  <parameter name ="MCName">prodgenie_nue_dune10kt_1x2x6_mcc11.0</parameter>
+  <parameter name ="MCDetectorType">10kt</parameter>
+  <parameter name ="MCGenerators">Genie</parameter>
+ 
+  <!-- Larsoft information -->
+  <larsoft>
+    <tag>&release;</tag>
+    <qual>e17:prof</qual>
+    <local>/pnfs/dune/scratch/users/iseong/mydev/local.tar</local>
+  </larsoft>
+
+  <!-- Project stages -->
+  <stage name="myregcvn">
+    <fcl>regcvnmapevaluatejob.fcl</fcl>
+    <maxfilesperjob>1</maxfilesperjob> 
+    <jobsub>--expected-lifetime=24h</jobsub>
+    <inputdef>prodgenie_nue_dune10kt_1x2x6_mcc10.0</inputdef>
+    <outdir>/pnfs/dune/scratch/users/iseong/&release;/regcvn_nue/&name;</outdir>
+    <workdir>/pnfs/dune/scratch/users/iseong/work/&release;/regcvn_nue/&name;</workdir>
+    <numjobs>513</numjobs>
+    <datatier>full-reconstructed</datatier>
+    <defname>&name;_&tag;</defname>
+  </stage>
+
+  <stage name="myregcvnana">
+    <fcl>regcvnanajob.fcl</fcl>
+    <jobsub>--expected-lifetime=12h</jobsub>
+    <inputdef>iseong_regcvn_nue_data</inputdef>
+    <outdir>/pnfs/dune/scratch/users/iseong/&release;/regcvnana_nue/&name;</outdir>
+    <workdir>/pnfs/dune/scratch/users/iseong/work/&release;/regcvnana_nue/&name;</workdir>
+    <numjobs>100</numjobs>
+    <datatier>full-reconstructed</datatier>
+    <defname>&name;_&tag;</defname>
+  </stage>
+
+  <!-- Total Files of MCC10: 513 -->
+  <!-- <maxfilesperjob>1</maxfilesperjob> -->
+  <!-- <inputdef>prodgenie_nue_dune10kt_1x2x6_mcc10.0</inputdef> -->
+  <!-- Total Files of MCC11: 9848 -->
+  <!-- <inputdef>prodgenie_nue_dune10kt_1x2x6_mcc11_lbl_reco</inputdef> -->
+  <stage name="fullregcvnana1mcc11">
+    <fcl>/pnfs/dune/scratch/users/iseong/job/regcnnvtxanajob1.fcl</fcl>
+    <jobsub>--expected-lifetime=24h</jobsub>
+    <inputdef>iseong_copy_nue_mcc11_reco</inputdef>
+    <outdir>/pnfs/dune/scratch/users/iseong/&release;/regcvnana_nuemcc10_vtx/&name;</outdir>
+    <workdir>/pnfs/dune/scratch/users/iseong/work/&release;/regcvnana_nuemcc10_vtx/&name;</workdir>
+    <numjobs>1000</numjobs>
+    <datatier>full-reconstructed</datatier>
+    <defname>&name;_&tag;</defname>
+  </stage>
+
+  <stage name="fullregcvnanamcc11">
+    <fcl>regcnnvtxanajob.fcl</fcl>
+    <jobsub>--expected-lifetime=24h</jobsub>
+    <inputdef>iseong_copy_nue_mcc11_reco</inputdef>
+    <outdir>/pnfs/dune/scratch/users/iseong/&release;/regcvnana_nuemcc11_vtx2/&name;</outdir>
+    <workdir>/pnfs/dune/scratch/users/iseong/work/&release;/regcvnana_nuemcc11_vtx2/&name;</workdir>
+    <numjobs>1000</numjobs>
+    <datatier>full-reconstructed</datatier>
+    <defname>&name;_&tag;</defname>
+  </stage>
+
+  <stage name="fullregcvnanamcc10">
+    <fcl>regcnnvtxanajob.fcl</fcl>
+    <jobsub>--expected-lifetime=24h</jobsub>
+    <inputdef>prodgenie_nue_dune10kt_1x2x6_mcc10.0</inputdef>
+    <outdir>/pnfs/dune/scratch/users/iseong/&release;/regcvnana_nuemcc10_vtx2/&name;</outdir>
+    <workdir>/pnfs/dune/scratch/users/iseong/work/&release;/regcvnana_nuemcc10_vtx2/&name;</workdir>
+    <numjobs>513</numjobs>
+    <datatier>full-reconstructed</datatier>
+    <defname>&name;_&tag;</defname>
+  </stage>
+
+  <stage name="fullregcvnanareco">
+    <fcl>regcnnvtxanajob_inc_reco.fcl</fcl>
+    <jobsub>--expected-lifetime=24h</jobsub>
+    <inputdef>iseong_copy_nue_mcc11_reco</inputdef>
+    <outdir>/pnfs/dune/scratch/users/iseong/&release;/regcvnana_nuemc_w_reco/&name;</outdir>
+    <workdir>/pnfs/dune/scratch/users/iseong/work/&release;/regcvnana_nuemc_w_reco/&name;</workdir>
+    <numjobs>1000</numjobs>
+    <datatier>full-reconstructed</datatier>
+    <defname>&name;_&tag;</defname>
+  </stage>
+
+
+  <!-- file type -->
+  <filetype>&file_type;</filetype>
+
+  <!-- run type -->
+  <runtype>&run_type;</runtype>
+
+</project>
+</job>

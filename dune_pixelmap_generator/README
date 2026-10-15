@@ -1,0 +1,34 @@
+Create Root Files in art
+- Location of package: /dune/app/users/iseong/larsoft_reco/srcs/dunetpc/dune/RecoEnergyStudies
+- RecoEnergyS_module.cc is the main code to make Root Files in art
+- RegCNNVertexAna_module.cc is the code to analyze the CNN reconstructions
+- Can run iteractively with lar -n 10 -c recoenergys.fcl -s <file>
+- To submit jobs:
+    - Create local.tar for $MRB_INSTALL, then copy it in /pnfs/
+    - Submit jobs with project.py. The xml files are located in /dune/app/users/iseong/myjobsub
+    - e.g. can run:
+        To clean up space in dCache:
+        project.py --xml prodgenie_nuecc_dune10kt_1x2x6_recoenergy.xml --stage <stage name> --clean
+        to submit jobs:
+        project.py --xml prodgenie_nuecc_dune10kt_1x2x6_recoenergy.xml --stage <stage name> --submit
+
+Create pixel map files
+- This step shows how to create the pixel maps in Root format and HDF5 formath
+- Location of scripts: /dune/app/users/iseong/myjobsub (in current repo)
+- Can submit jobs to create pixel map using Run_BatchJobs_v3.py, Run_BatchJobs_prong.py, or Run_BatchJobs_for_numu_v1.py
+- e.g.
+    python Run_BatchJobs_prong.py list_of_prong_nuecc.list ./macros/make_text_file_to_root_v2_prongs.C nue ./macros/do_convert_prong
+    where, list_of_prong_nuecc.list is the list of Root files generated with the RecoEnergyS_module.cc shown in the previous section, ./macros/make_text_file_to_root_v2_prongs.C is the script to create pixel maps in Root format, nue is to select mode, ./macros/do_convert_prongis to convert the Root format into HDF5 format
+- This will generate pixel maps in ROOT and HDF5 format both
+- Please check the destinations, prefix, and the number of jobs before submitting jobs: e.g. Run_BatchJobs_prong.py and batch_jobsub_prong.sh
+
+How to compile the converting code Root format to HDF5
+- Located in /dune/app/users/iseong/myjobsub/standalone (moved to "standalone" in current repo)
+- Use "run_*.sh" to compile the scripts
+
+Some analyais scripts
+- e.g. ploting pixel maps, etc.
+- location: /dune/app/users/iseong/Myana (moved to "ana" in current repo)
+
+Caveat
+- Issue on Aug, 2019: Pandora vertex information can not be extracted. Needs to check any changes in the module names or etc.

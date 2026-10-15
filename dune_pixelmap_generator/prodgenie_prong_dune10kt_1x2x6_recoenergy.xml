@@ -1,0 +1,77 @@
+<?xml version="1.0"?>
+
+<!DOCTYPE project [
+<!ENTITY release "v08_14_00">
+<!ENTITY file_type "mc">
+<!ENTITY run_type "physics">
+<!ENTITY name "prong_dune10kt_1x2x6">
+<!ENTITY tag "devel">
+]>
+
+<job>
+
+<project name="&name;_recoE">
+  <group>dune</group>
+
+  <!-- Project size -->
+  <numevents>10000000</numevents>
+
+  <!-- Operating System -->
+  <os>SL6</os>
+
+  <!-- Batch resources -->
+  <resource>DEDICATED,OPPORTUNISTIC</resource>
+
+  <!-- metadata parameters -->
+  <parameter name ="MCName">prong_dune10kt_1x2x6</parameter>
+  <parameter name ="MCDetectorType">10kt</parameter>
+  <parameter name ="MCGenerators">GENIE</parameter>
+ 
+  <!-- Larsoft information -->
+  <larsoft>
+    <tag>&release;</tag>
+    <qual>e17:prof</qual>
+    <local>/pnfs/dune/scratch/users/iseong/mydev/local.tar</local>
+  </larsoft>
+
+  <!-- <fcl>recoenergys.fcl</fcl> -->
+  <!-- Project stages -->
+  <stage name="nue">
+    <fcl>/pnfs/dune/scratch/users/iseong/work/job/recoenergys_inc_reco.fcl</fcl>
+    <jobsub>--expected-lifetime=48h</jobsub>
+    <memory>6000</memory>
+    <disk>20GB</disk>
+    <maxfilesperjob>1</maxfilesperjob>
+    <inputdef>iseong_prodgenie_nuecc_mergeana</inputdef>
+    <outdir>/pnfs/dune/scratch/users/iseong/&release;/recoE_nuecc/&name;</outdir>
+    <output>&name;_${PROCESS}_%tc_recoE.root</output>
+    <workdir>/pnfs/dune/scratch/users/iseong/work/&release;/recoE_nuecc/&name;</workdir>
+    <numjobs>1010</numjobs>
+    <datatier>full-reconstructed</datatier>
+    <defname>&name;_&tag;</defname>
+  </stage>
+  <!--  <numjobs>1010</numjobs> -->
+  <stage name="numu">
+    <fcl>/pnfs/dune/scratch/users/iseong/work/job/recoenergys_inc_reco.fcl</fcl>
+    <jobsub>--expected-lifetime=48h</jobsub>
+    <memory>6000</memory>
+    <disk>20GB</disk>
+    <maxfilesperjob>1</maxfilesperjob>
+    <inputdef>iseong_numu_mcc10_mergeana_train_set</inputdef>
+    <outdir>/pnfs/dune/scratch/users/iseong/&release;/recoE_numu_mcc10/&name;</outdir>
+    <output>&name;_${PROCESS}_%tc_recoE.root</output>
+    <workdir>/pnfs/dune/scratch/users/iseong/work/&release;/recoE_numu_mcc10/&name;</workdir>
+    <numjobs>461</numjobs>
+    <datatier>full-reconstructed</datatier>
+    <defname>&name;_&tag;</defname>
+  </stage>
+
+
+  <!-- file type -->
+  <filetype>&file_type;</filetype>
+
+  <!-- run type -->
+  <runtype>&run_type;</runtype>
+
+</project>
+</job>
