@@ -8,7 +8,7 @@ simple_plugin(RecoEnergyS "module"
 			larcore_Geometry_Geometry_service
 		        larsim_MCCheater_BackTrackerService_service
 		        larsim_MCCheater_ParticleInventoryService_service
-			larsim_Simulation nutools_ParticleNavigation lardataobj_Simulation
+			larsim_Simulation nug4::ParticleNavigation lardataobj_Simulation
 			lardata_Utilities
 			larpandora_LArPandoraInterface
 			nusimdata_SimulationBase
@@ -37,7 +37,7 @@ simple_plugin(RegCNNVertexAna "module"
 			larcore_Geometry_Geometry_service
 		        larsim_MCCheater_BackTrackerService_service
 		        larsim_MCCheater_ParticleInventoryService_service
-			larsim_Simulation nutools_ParticleNavigation lardataobj_Simulation
+			larsim_Simulation nug4::ParticleNavigation lardataobj_Simulation
 			lardata_Utilities
 			larpandora_LArPandoraInterface
 			nusimdata_SimulationBase
