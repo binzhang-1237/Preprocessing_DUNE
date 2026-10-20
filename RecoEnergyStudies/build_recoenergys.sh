@@ -27,6 +27,22 @@ Environment overrides:
 EOF
 }
 
+source_required() {
+    local description="$1"
+    local setup_file="$2"
+    local status
+
+    printf '[build] %s\n' "$description"
+    if source "$setup_file"; then
+        return 0
+    else
+        status=$?
+        printf '[build] ERROR: %s failed (exit %d): %s\n' \
+            "$description" "$status" "$setup_file" >&2
+        return "$status"
+    fi
+}
+
 while (($# > 0)); do
     case "$1" in
         -j)
@@ -71,20 +87,36 @@ done
 cd "$WORK"
 export LARSOFT_WORK="$WORK"
 export prod_db=/cvmfs/larsoft.opensciencegrid.org/products
-source setup_larsoft.sh || true
-source setup_dune.sh || true
-setup larsoft "$LARSOFT_VERSION" -q e26:prof || true
-source "$LOCAL_PRODUCTS/setup" || true
+source_required "Initializing LArSoft environment" "$WORK/setup_larsoft.sh"
+source_required "Initializing DUNE environment" "$WORK/setup_dune.sh"
+printf '[build] Selecting LArSoft %s with qualifier e26:prof\n' "$LARSOFT_VERSION"
+if setup larsoft "$LARSOFT_VERSION" -q e26:prof; then
+    :
+else
+    status=$?
+    printf '[build] ERROR: selecting LArSoft %s failed (exit %d)\n' \
+        "$LARSOFT_VERSION" "$status" >&2
+    exit "$status"
+fi
+source_required "Loading local products" "$LOCAL_PRODUCTS/setup"
 export PRODUCTS="/cvmfs/dune.opensciencegrid.org/products/dune:${PRODUCTS:-}"
 export PATH="/mnt/ssd/larsoft/mrb_patch/bin:$PATH"
-mrbsetenv || true
+printf '[build] Configuring MRB build environment\n'
+if mrbsetenv; then
+    :
+else
+    status=$?
+    printf '[build] ERROR: configuring MRB environment failed (exit %d)\n' \
+        "$status" >&2
+    exit "$status"
+fi
 
 if [[ "${MRB_PROJECT_VERSION:-}" != "$LARSOFT_VERSION" ]]; then
     echo "Loaded MRB version '${MRB_PROJECT_VERSION:-unknown}', expected '$LARSOFT_VERSION'" >&2
     exit 1
 fi
 
-source "$ROOT_LOCAL/bin/thisroot.sh"
+source_required "Loading ROOT environment" "$ROOT_LOCAL/bin/thisroot.sh"
 
 # ROOT 6.28.12 was built for Python 3.10; preserve UPS's compiler environment.
 PYTHON_SHIM="$WORK/.python-bin"
@@ -128,13 +160,15 @@ fi
 mkdir -p "$BUILD_DIR"
 ln -sfn "$WORK/srcs/dunereco/dunereco" "$BUILD_DIR/dune"
 
-printf 'LArSoft=%s\nROOT=%s\nPython=%s\nSource=%s\nBuild=%s\nJobs=%s\n' \
+printf '[build] Configuration summary:\nLArSoft=%s\nROOT=%s\nPython=%s\nSource=%s\nBuild=%s\nJobs=%s\n' \
     "$MRB_PROJECT_VERSION" "$(root-config --version)" "$(python --version 2>&1)" \
     "$SCRIPT_DIR" "$BUILD_DIR" "$JOBS"
 
+printf '[build] Configuring CMake\n'
 cmake -S "$CMAKE_SOURCE_DIR" -B "$BUILD_DIR" \
     -DRECOENERGY_STUDIES_SOURCE="$SCRIPT_DIR" \
     -DLARSOFT_DUNE_SOURCE_DIR="$WORK/srcs/dunereco/dunereco" \
     -DLARSOFT_DUNE_BUILD_DIR="$WORK/build_slf7.x86_64/dunereco" \
     -DGeant4_DIR="$(dirname "$GEANT4_CONFIG")"
+printf '[build] Building RecoEnergyS_module\n'
 cmake --build "$BUILD_DIR" --target RecoEnergyS_module --parallel "$JOBS"
