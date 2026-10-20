@@ -16,6 +16,9 @@
 #include "art/Framework/Services/Registry/ServiceHandle.h"
 #include "art_root_io/TFileService.h"
 #include "art_root_io/TFileDirectory.h"
+// Original includes from commit 8d6db0ca:
+// #include "art/Framework/Services/Optional/TFileService.h"
+// #include "art/Framework/Services/Optional/TFileDirectory.h"
 #include "messagefacility/MessageLogger/MessageLogger.h"
 #include "art/Framework/Core/EDAnalyzer.h"
 #include "larcoreobj/SimpleTypesAndConstants/geo_types.h"
@@ -53,6 +56,8 @@
 #include "nusimdata/SimulationBase/MCParticle.h"
 #include "nusimdata/SimulationBase/MCTrajectory.h"
 #include "nug4/ParticleNavigation/ParticleList.h"
+// Original include from commit 8d6db0ca:
+// #include "nutools/ParticleNavigation/ParticleList.h"
 #include "lardataobj/Simulation/sim.h"
 
 #include "dune/FDSensOpt/FDSensOptData/EnergyRecoOutput.h"
@@ -556,11 +561,16 @@ private:
   art::ServiceHandle<geo::WireReadout const> wireReadout;
   std::optional<detinfo::DetectorClocksData> clockData;
   std::optional<detinfo::DetectorPropertiesData> detprop;
+  // Original member from commit 8d6db0ca:
+  // detinfo::DetectorProperties const* detprop = nullptr;
 
 };
 
 recoestudy::RecoEnergyS::RecoEnergyS(fhicl::ParameterSet const& pset) : EDAnalyzer(pset),
 	fCaloAlg (pset.get<fhicl::ParameterSet>("CalorimetryAlg")){
+        // Original initializer from commit 8d6db0ca:
+	// fCaloAlg (pset.get<fhicl::ParameterSet>("CalorimetryAlg")),
+        // detprop(lar::providerFrom<detinfo::DetectorPropertiesService>()){
 
   this->reconfigure(pset);
 
@@ -1034,6 +1044,8 @@ std::vector<std::pair<const simb::MCParticle*,double>> get_sortedMCParticle(std:
 }
 const simb::MCParticle* recoestudy::RecoEnergyS::get_bestMCParticle(const art::Ptr<recob::Hit>& hit){
     std::unordered_map<const simb::MCParticle*, double> mcEMap;
+    // Original call from commit 8d6db0ca:
+    // std::vector<sim::TrackIDE> TrackIDs = backtracker->HitToTrackIDEs(hit);
     std::vector<sim::TrackIDE> TrackIDs = backtracker->HitToTrackIDEs(*clockData, hit);
     for(size_t e = 0; e < TrackIDs.size(); ++e){
         mcEMap[particleinventory->TrackIdToParticle_P(TrackIDs[e].trackID)] += TrackIDs[e].energy;
@@ -1048,17 +1060,24 @@ bool recoestudy::RecoEnergyS::ConvertXYZtoWireTDC(const double *vtx_loc,
   	 double *TPC, double *LocalWire, double *LocalTick,
 	 double *GlobalPlane, double *GlobalWire, double *GlobalTick){
 
+  // Original position lookup from commit 8d6db0ca:
+  // if (!(geom->FindTPCAtPosition(vtx_loc).isValid)) return false;
   geo::Point_t const position{vtx_loc[0], vtx_loc[1], vtx_loc[2]};
   geo::TPCID const tpcID = geom->FindTPCAtPosition(position);
   if (!tpcID.isValid) return false;
   else {
     int rawcrys = 0;
     for (int iplane = 0; iplane<3; iplane++){
+            // Original TPC/plane lookup from commit 8d6db0ca:
+            // int rawtpc = (int) (geom->FindTPCAtPosition(vtx_loc)).TPC;
+	    // geo::PlaneGeo const& planegeo_temp = geom->Plane(iplane);
             int rawtpc = (int)tpcID.TPC;
 	    geo::PlaneID const planeID(rawcrys, rawtpc, iplane);
 	    geo::PlaneGeo const& planegeo_temp = wireReadout->Get().Plane(planeID);
 	    geo::WireID w1;
 	    try {
+            // Original nearest-wire call from commit 8d6db0ca:
+            // w1 = geom->NearestWireID(vtx_loc, iplane, rawtpc, rawcrys);
   	          w1 = wireReadout->Get().NearestWireID(position, planeID);
 	    }
 	    catch (geo::InvalidWireError const& e) {
@@ -1100,6 +1119,10 @@ void recoestudy::RecoEnergyS::analyze(art::Event const& evt) {
   /// This is written assuming single particle per event
 
   this->reset();
+  // Original event-dependent properties code from commit 8d6db0ca:
+  //auto const *detprop = lar::providerFrom<detinfo::DetectorPropertiesService>();
+  // det_t0        = detprop->TriggerOffset();
+  // SampleRate    = detprop->SamplingRate();
   clockData.emplace(art::ServiceHandle<detinfo::DetectorClocksService const>()->DataFor(evt));
   detprop.emplace(art::ServiceHandle<detinfo::DetectorPropertiesService const>()->DataFor(evt, *clockData));
   det_t0        = clockData->TriggerOffsetTPC();
@@ -1109,6 +1132,10 @@ void recoestudy::RecoEnergyS::analyze(art::Event const& evt) {
 
   ievt = evt.id().event();
   //                     planeID, tpc#, CryostatID
+  // Original wire counts from commit 8d6db0ca:
+  // nwires_p0 = geom->Nwires(0, 0, 0);
+  // nwires_p1 = geom->Nwires(1, 0, 0);
+  // nwires_p2 = geom->Nwires(2, 0, 0);
   nwires_p0 = wireReadout->Get().Nwires(geo::PlaneID(0, 0, 0));
   nwires_p1 = wireReadout->Get().Nwires(geo::PlaneID(0, 0, 1));
   nwires_p2 = wireReadout->Get().Nwires(geo::PlaneID(0, 0, 2));
@@ -1195,6 +1222,8 @@ void recoestudy::RecoEnergyS::analyze(art::Event const& evt) {
   simCh_size = simChannels.size();
   for (auto channelIt = simChannels.begin(); channelIt != simChannels.end(); ++channelIt) {
     if (icount >= kMaxHits) continue;
+    // Original channel-view lookup from commit 8d6db0ca:
+    // int plane = geom->View((*channelIt)->Channel());
     int plane = wireReadout->Get().View((*channelIt)->Channel());
     tdc_size[icount] = ((*channelIt)->TDCIDEMap()).size();
     for (auto const& tdcIt : (*channelIt)->TDCIDEMap()) {
@@ -1453,6 +1482,8 @@ void recoestudy::RecoEnergyS::analyze(art::Event const& evt) {
 	   std::unordered_map<const simb::MCParticle*, double> mcEMap;
 
            for (size_t h = 0; h < vhit.size(); ++h){
+	       // Original call from commit 8d6db0ca:
+	       // std::vector<sim::TrackIDE> TrackIDs = backtracker->HitToTrackIDEs(vhit[h]);
     	       std::vector<sim::TrackIDE> TrackIDs = backtracker->HitToTrackIDEs(*clockData, vhit[h]);
                for(size_t e = 0; e < TrackIDs.size(); ++e){
 		 mcEMap[particleinventory->TrackIdToParticle_P(TrackIDs[e].trackID)] += TrackIDs[e].energy;
@@ -1602,6 +1633,8 @@ void recoestudy::RecoEnergyS::analyze(art::Event const& evt) {
 
 	   std::cout << " N Hits in Shower: " << vhit.size() << std::endl;
            for (size_t h = 0; h < vhit.size(); ++h){
+               // Original call from commit 8d6db0ca:
+               // std::vector<sim::TrackIDE> TrackIDs = backtracker->HitToTrackIDEs(vhit[h]);
     	       std::vector<sim::TrackIDE> TrackIDs = backtracker->HitToTrackIDEs(*clockData, vhit[h]);
                for(size_t e = 0; e < TrackIDs.size(); ++e){
                  trkide[TrackIDs[e].trackID] += TrackIDs[e].energy;
@@ -1703,6 +1736,8 @@ void recoestudy::RecoEnergyS::analyze(art::Event const& evt) {
 
            for (size_t h = 0; h < vhit.size(); ++h){
              if (h<kMaxHits){
+               // Original lifetime correction from commit 8d6db0ca:
+               // double correctedHitCharge = vhit[h]->Integral() * fCaloAlg.LifetimeCorrection(vhit[h]->PeakTime(), det_t0);
                double correctedHitCharge = vhit[h]->Integral() *
                    fCaloAlg.LifetimeCorrection(*clockData, *detprop, vhit[h]->PeakTime(), det_t0);
                if (vhit[h]->WireID().Plane == 2){
@@ -1929,6 +1964,8 @@ void recoestudy::RecoEnergyS::analyze(art::Event const& evt) {
     hit_trueE   [hitIt] =  -1;
 
     double xyz[3]; // in cm
+    // Original wire-center lookup from commit 8d6db0ca:
+    // geom -> Cryostat(hit->WireID().Cryostat).TPC(hit->WireID().TPC).Plane(hit->WireID().Plane).Wire(hit->WireID().Wire).GetCenter(xyz);
     auto const& center = wireReadout->Get().Wire(hit->WireID()).GetCenter();
     xyz[0] = center.X();
     xyz[1] = center.Y();
@@ -2089,6 +2126,8 @@ void recoestudy::RecoEnergyS::analyze(art::Event const& evt) {
         raw::Uncompress(allraws[0]->ADCs(), adcvec, allraws[0]->Compression());
 	unsigned int chNum = allraws[0]->Channel();
         std::vector< geo::WireID > wireID =
+                                    // Original channel lookup from commit 8d6db0ca:
+                                    // geom -> ChannelToWire(chNum);
                                     wireReadout->Get().ChannelToWire(chNum);
 
 	hit_raw_chID[iwire]   = chNum; 
@@ -2120,6 +2159,8 @@ void recoestudy::RecoEnergyS::analyze(art::Event const& evt) {
         std::vector< art::Ptr<recob::Wire> > wireptr = fmwire.at(hitIt);
 
 	for (size_t iwireptr = 0; iwireptr < wireptr.size(); iwireptr++){
+                // Original channel lookup from commit 8d6db0ca:
+		// std::vector<geo::WireID> wireids = geom->ChannelToWire(wireptr[iwireptr]->Channel());
 		std::vector<geo::WireID> wireids = wireReadout->Get().ChannelToWire(wireptr[iwireptr]->Channel());
 		bool goodWID = false;
 		for (auto const & wid:wireids){
@@ -2335,15 +2376,22 @@ void recoestudy::RecoEnergyS::analyze(art::Event const& evt) {
     std::cout << "True Particle T: " << trueParticle->T() << "  " << detprop->DriftVelocity() << std::endl;
     pos =  vertex + ( (1.0) * direction );
     double currentPos[3]; currentPos[0] = pos.X(); currentPos[1] = pos.Y(); currentPos[2] = pos.Z();
+    // Original midpoint TPC lookup from commit 8d6db0ca:
+    // if (geom->FindTPCAtPosition(currentPos).isValid){
     geo::Point_t const currentPoint{currentPos[0], currentPos[1], currentPos[2]};
     geo::TPCID const currentTPC = geom->FindTPCAtPosition(currentPoint);
     if (currentTPC.isValid){
 	for (int iplane = 0; iplane < 3; iplane++){
+            // Original midpoint TPC/plane lookup from commit 8d6db0ca:
+            // rawtpc = (int) (geom->FindTPCAtPosition(currentPos)).TPC;
+	    // geo::PlaneGeo const& planegeo_temp = geom->Plane(iplane);
             rawtpc = (int)currentTPC.TPC;
 	  geo::PlaneID const planeID(rawcrys, rawtpc, iplane);
 	  geo::PlaneGeo const& planegeo_temp = wireReadout->Get().Plane(planeID);
 	  geo::WireID w1;
 	  try {
+            // Original midpoint nearest-wire call from commit 8d6db0ca:
+            // w1 = geom->NearestWireID(currentPos, iplane, rawtpc, rawcrys);
     	        w1 = wireReadout->Get().NearestWireID(currentPoint, planeID);
 	  }
 	  catch (geo::InvalidWireError const& e) {
@@ -2357,15 +2405,22 @@ void recoestudy::RecoEnergyS::analyze(art::Event const& evt) {
      }
   }
 
+  // Original end-point TPC lookup from commit 8d6db0ca:
+  // if ((geom->FindTPCAtPosition(end_loc).isValid)){
   geo::Point_t const endPoint{end_loc[0], end_loc[1], end_loc[2]};
   geo::TPCID const endTPC = geom->FindTPCAtPosition(endPoint);
   if (endTPC.isValid){
     for (int iplane = 0; iplane<3; iplane++){
+            // Original end-point TPC/plane lookup from commit 8d6db0ca:
+            // rawtpc = (int) (geom->FindTPCAtPosition(end_loc)).TPC;
+	    // geo::PlaneGeo const& planegeo_temp = geom->Plane(iplane);
             rawtpc = (int)endTPC.TPC;
 	    geo::PlaneID const planeID(rawcrys, rawtpc, iplane);
 	    geo::PlaneGeo const& planegeo_temp = wireReadout->Get().Plane(planeID);
   	    geo::WireID w1;
   	    try {
+              // Original end-point nearest-wire call from commit 8d6db0ca:
+              // w1 = geom->NearestWireID(end_loc, iplane, rawtpc, rawcrys);
   	          w1 = wireReadout->Get().NearestWireID(endPoint, planeID);
 	    }
 	    catch (geo::InvalidWireError const& e) {
@@ -2509,6 +2564,9 @@ void recoestudy::RecoEnergyS::GetDUNEGlobalWireTDC(const geo::WireID& wireID, do
 
   unsigned int nWiresTPC = 400;
   unsigned int wireGap = 4;
+  // Original geometry access from commit 8d6db0ca:
+  // double driftLen = geom->TPC(tpc,0).DriftDistance();
+  // double apaLen = geom->TPC(tpc,0).Width() - geom->TPC(tpc,0).ActiveWidth();
   auto const& tpcgeo = geom->TPC(geo::TPCID(0, tpc));
   double driftLen = tpcgeo.DriftDistance();
   double apaLen = tpcgeo.Width() - tpcgeo.ActiveWidth();
@@ -2573,10 +2631,16 @@ void recoestudy::RecoEnergyS::GetDUNEGlobalWireTDC(const geo::WireID& wireID, do
 double recoestudy::RecoEnergyS::GetPixelMapWireIdx(const geo::WireID& wireID){
 
    double globalWire = -9999;
+   // Original wire count lookup from commit 8d6db0ca:
+   // unsigned int nwires = geom->Nwires(wireID.Plane, 0, wireID.Cryostat);
    unsigned int nwires = wireReadout->Get().Nwires(
        geo::PlaneID(wireID.Cryostat, 0, wireID.Plane));
 
    // Induction
+   // Original signal-type and wire-center lookups from commit 8d6db0ca:
+   // if (geom->SignalType(wireID) == geo::kInduction) {
+   //   double WireCentre[3] = {0};
+   //   geom->WireIDToWireGeo(wireID).GetCenter(WireCentre);
    if (wireReadout->Get().SignalType(wireID.asPlaneID()) == geo::kInduction) {
      auto const& wireCentre = wireReadout->Get().Wire(wireID).GetCenter();
      geo::PlaneID p1;
@@ -2589,6 +2653,8 @@ double recoestudy::RecoEnergyS::GetPixelMapWireIdx(const geo::WireID& wireID){
 		temp_tpc = 1;
      }
      p1 = geo::PlaneID(wireID.Cryostat, temp_tpc, wireID.Plane);
+     // Original wire-coordinate lookup from commit 8d6db0ca:
+     // globalWire = geom->WireCoordinate(WireCentre[1], WireCentre[2], p1);
      globalWire = wireReadout->Get().WireCoordinate(wireCentre.Y(), wireCentre.Z(), p1); 
    }
 
@@ -2606,6 +2672,8 @@ int recoestudy::RecoEnergyS::FindTrackID(art::Ptr<recob::Hit> const& hit) {
   double particleEnergy = 0;
   int likelyTrackID = 0;
   //std::vector<sim::TrackIDE> trackIDs = backtracker->HitToTrackID(hit);
+  // Original call from commit 8d6db0ca:
+  // std::vector<sim::TrackIDE> trackIDs = backtracker->HitToTrackIDEs(hit);
   std::vector<sim::TrackIDE> trackIDs = backtracker->HitToTrackIDEs(*clockData, hit);
   for (unsigned int idIt = 0; idIt < trackIDs.size(); ++idIt) {
     if (trackIDs.at(idIt).energy > particleEnergy) {
