@@ -1125,7 +1125,7 @@ void recoestudy::RecoEnergyS::analyze(art::Event const& evt) {
   // SampleRate    = detprop->SamplingRate();
   clockData.emplace(art::ServiceHandle<detinfo::DetectorClocksService const>()->DataFor(evt));
   detprop.emplace(art::ServiceHandle<detinfo::DetectorPropertiesService const>()->DataFor(evt, *clockData));
-  det_t0        = clockData->TriggerOffsetTPC();
+  det_t0        = clockData->TPCClock().Ticks(-clockData->TriggerOffsetTPC());
   driftvelocity = detprop->DriftVelocity(detprop->Efield(),detprop->Temperature())/1000.;
   SampleRate    = clockData->TPCClock().TickPeriod() * 1.e3;
   bool isMC = !evt.isRealData();
