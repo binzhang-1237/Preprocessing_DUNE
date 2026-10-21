@@ -542,6 +542,7 @@ private:
   std::string fEnergyRecoNueLabel;
   std::string fEnergyRecoNumuLabel;
   std::string fEnergyRecoNuelseLabel;
+  bool fEnableRegCNN;
   std::string fRegCNNModuleLabel;
   std::string fRegCNNResultLabel;
 
@@ -626,25 +627,28 @@ recoestudy::RecoEnergyS::RecoEnergyS(fhicl::ParameterSet const& pset) : EDAnalyz
   fTree->Branch("TrueMidWire",       trueMidWire,  "TrueMidWire[3]/D");
   fTree->Branch("TrueMidTime",       trueMidTime,  "TrueMidTime[3]/D");
 
-  fTree->Branch("CVNVertex1ststep",  CVN_vertex1ststep,  "CVNVertex1ststep[3]/F");
-  fTree->Branch("CVNVertex2ndstep",  CVN_vertex2ndstep,  "CVNVertex2ndstep[3]/F");
+  if (fEnableRegCNN) {
+    fTree->Branch("CVNVertex1ststep",  CVN_vertex1ststep,  "CVNVertex1ststep[3]/F");
+    fTree->Branch("CVNVertex2ndstep",  CVN_vertex2ndstep,  "CVNVertex2ndstep[3]/F");
 
-  fTree->Branch("CVNVertex2",        CVN_vertex2,  "CVNVertex2[3]/F");
-  fTree->Branch("CVNVtx2Wire",       CVNVtx2Wire, "CVNVtx2Wire[3]/D");
-  fTree->Branch("CVNVtx2TPC",        CVNVtx2TPC,   "CVNVtx2TPC[3]/D");
-  fTree->Branch("CVNVtx2Time",       CVNVtx2Time,  "CVNVtx2Time[3]/D");
-  fTree->Branch("CVNVtx2GlobalWire", CVNVtx2GlobalWire, "CVNVtx2GlobalWire[3]/D");
-  fTree->Branch("CVNVtx2GlobalTick", CVNVtx2GlobalTick, "CVNVtx2GlobalTick[3]/D");
-  fTree->Branch("CVNVtx2GlobalPlane",CVNVtx2GlobalPlane, "CVNVtx2GlobalPlane[3]/D");
+    fTree->Branch("CVNVertex2",        CVN_vertex2,  "CVNVertex2[3]/F");
+    fTree->Branch("CVNVtx2Wire",       CVNVtx2Wire, "CVNVtx2Wire[3]/D");
+    fTree->Branch("CVNVtx2TPC",        CVNVtx2TPC,   "CVNVtx2TPC[3]/D");
+    fTree->Branch("CVNVtx2Time",       CVNVtx2Time,  "CVNVtx2Time[3]/D");
+    fTree->Branch("CVNVtx2GlobalWire", CVNVtx2GlobalWire, "CVNVtx2GlobalWire[3]/D");
+    fTree->Branch("CVNVtx2GlobalTick", CVNVtx2GlobalTick, "CVNVtx2GlobalTick[3]/D");
+    fTree->Branch("CVNVtx2GlobalPlane",CVNVtx2GlobalPlane, "CVNVtx2GlobalPlane[3]/D");
 
 
-  fTree->Branch("CVNVertex",         CVN_vertex,  "CVNVertex[3]/F");
-  fTree->Branch("CVNVtxWire",        CVNVtxWire, "CVNVtxWire[3]/D");
-  fTree->Branch("CVNVtxTPC",         CVNVtxTPC,   "CVNVtxTPC[3]/D");
-  fTree->Branch("CVNVtxTime",        CVNVtxTime,  "CVNVtxTime[3]/D");
-  fTree->Branch("CVNVtxGlobalWire",  CVNVtxGlobalWire, "CVNVtxGlobalWire[3]/D");
-  fTree->Branch("CVNVtxGlobalTick",  CVNVtxGlobalTick, "CVNVtxGlobalTick[3]/D");
-  fTree->Branch("CVNVtxGlobalPlane", CVNVtxGlobalPlane, "CVNVtxGlobalPlane[3]/D");
+    fTree->Branch("CVNVertex",         CVN_vertex,  "CVNVertex[3]/F");
+    fTree->Branch("CVNVtxWire",        CVNVtxWire, "CVNVtxWire[3]/D");
+    fTree->Branch("CVNVtxTPC",         CVNVtxTPC,   "CVNVtxTPC[3]/D");
+    fTree->Branch("CVNVtxTime",        CVNVtxTime,  "CVNVtxTime[3]/D");
+    fTree->Branch("CVNVtxGlobalWire",  CVNVtxGlobalWire, "CVNVtxGlobalWire[3]/D");
+    fTree->Branch("CVNVtxGlobalTick",  CVNVtxGlobalTick, "CVNVtxGlobalTick[3]/D");
+    fTree->Branch("CVNVtxGlobalPlane", CVNVtxGlobalPlane, "CVNVtxGlobalPlane[3]/D");
+
+  }
 
   fTree->Branch("EndProngGlobalWire", EndProngGlobalWire, "EndProngGlobalWire[3]/D");
   fTree->Branch("EndProngGlobalTick", EndProngGlobalTick, "EndProngGlobalTick[3]/D");
@@ -996,14 +1000,18 @@ void recoestudy::RecoEnergyS::reconfigure(fhicl::ParameterSet const& pset) {
   fEnergyRecoNueLabel = pset.get<std::string>("EnergyRecoNueLabel");
   fEnergyRecoNumuLabel = pset.get<std::string>("EnergyRecoNumuLabel");
   fEnergyRecoNuelseLabel = pset.get<std::string>("EnergyRecoNuelseLabel");
-  fRegCNNModuleLabel = pset.get<std::string>("RegCNNModuleLabel");
-  fRegCNNResultLabel = pset.get<std::string>("RegCNNResultLabel");
-  fRegCNN1ststepModuleLabel = "regcnneval";
-  fRegCNN1ststepResultLabel = "regcnnresult";
-  fRegCNN2ndstepModuleLabel = "regcnnevalk";
-  fRegCNN2ndstepResultLabel = "regcnnresultk";
-  fRegCNNModule2Label = pset.get<std::string>("RegCNNModule2Label");
-  fRegCNNResult2Label = pset.get<std::string>("RegCNNResult2Label");
+  fEnableRegCNN = pset.get<bool>("EnableRegCNN", true);
+  if (fEnableRegCNN) {
+    fRegCNNModuleLabel = pset.get<std::string>("RegCNNModuleLabel");
+    fRegCNNResultLabel = pset.get<std::string>("RegCNNResultLabel");
+    fRegCNN1ststepModuleLabel = "regcnneval";
+    fRegCNN1ststepResultLabel = "regcnnresult";
+    fRegCNN2ndstepModuleLabel = "regcnnevalk";
+    fRegCNN2ndstepResultLabel = "regcnnresultk";
+    fRegCNNModule2Label = pset.get<std::string>("RegCNNModule2Label");
+    fRegCNNResult2Label = pset.get<std::string>("RegCNNResult2Label");
+  }
+
 
   ievt = -999;
 
@@ -1188,20 +1196,6 @@ void recoestudy::RecoEnergyS::analyze(art::Event const& evt) {
       art::fill_ptr_vector(mclist, mctruthListHandle);
   }
 
-  // Get RegCNN Results
-  art::Handle<std::vector<cnn::RegCNNResult>> cnnresultListHandle;
-  evt.getByLabel(fRegCNNModuleLabel, fRegCNNResultLabel, cnnresultListHandle);
-
-  art::Handle<std::vector<cnn::RegCNNResult>> cnnresultListHandle1ststep;
-  evt.getByLabel(fRegCNN1ststepModuleLabel, fRegCNN1ststepResultLabel, cnnresultListHandle1ststep);
-
-  art::Handle<std::vector<cnn::RegCNNResult>> cnnresultListHandle2ndstep;
-  evt.getByLabel(fRegCNN2ndstepModuleLabel, fRegCNN2ndstepResultLabel, cnnresultListHandle2ndstep);
-
-  art::Handle<std::vector<cnn::RegCNNResult>> cnnresultListHandle2;
-  evt.getByLabel(fRegCNNModule2Label, fRegCNNResult2Label, cnnresultListHandle2);
-
-
   art::FindManyP<recob::Wire> fmwire(hitHandle, evt, fHitsModuleLabel);
   art::FindManyP<raw::RawDigit> fmraw(hitHandle, evt, fHitsModuleLabel);
   art::FindMany<recob::PFParticle> fmPFParticle(vertexHandle, evt, fPFParticleModuleLabel);
@@ -1341,62 +1335,78 @@ void recoestudy::RecoEnergyS::analyze(art::Event const& evt) {
   if (inTPC) vtx_in_tpc = 1;
 
 
-  // Get RegCNN Results
-  if (!cnnresultListHandle.failedToGet())
-  {
-      if (!cnnresultListHandle->empty())
-      {
-          const std::vector<float>& v = (*cnnresultListHandle)[0].fOutput;
-          for (unsigned int ii = 0; ii < 3; ii++){
-              CVN_vertex[ii] = v[ii];
-          }
-      }
-  }
+  if (fEnableRegCNN) {
+    // Get RegCNN Results
+    art::Handle<std::vector<cnn::RegCNNResult>> cnnresultListHandle;
+    evt.getByLabel(fRegCNNModuleLabel, fRegCNNResultLabel, cnnresultListHandle);
 
-  if (!cnnresultListHandle1ststep.failedToGet())
-  {
-      if (!cnnresultListHandle1ststep->empty())
-      {
-          const std::vector<float>& v = (*cnnresultListHandle1ststep)[0].fOutput;
-          for (unsigned int ii = 0; ii < 3; ii++){
-              CVN_vertex1ststep[ii] = v[ii];
-          }
-      }
-  }
-  if (!cnnresultListHandle2ndstep.failedToGet())
-  {
-      if (!cnnresultListHandle2ndstep->empty())
-      {
-          const std::vector<float>& v = (*cnnresultListHandle2ndstep)[0].fOutput;
-          for (unsigned int ii = 0; ii < 3; ii++){
-              CVN_vertex2ndstep[ii] = v[ii];
-          }
-      }
-  }
+    art::Handle<std::vector<cnn::RegCNNResult>> cnnresultListHandle1ststep;
+    evt.getByLabel(fRegCNN1ststepModuleLabel, fRegCNN1ststepResultLabel, cnnresultListHandle1ststep);
 
-  if (!cnnresultListHandle2.failedToGet())
-  {
-      if (!cnnresultListHandle2->empty())
-      {
-          const std::vector<float>& v = (*cnnresultListHandle2)[0].fOutput;
-          for (unsigned int ii = 0; ii < 3; ii++){
-              CVN_vertex2[ii] = v[ii];
-          }
-      }
+    art::Handle<std::vector<cnn::RegCNNResult>> cnnresultListHandle2ndstep;
+    evt.getByLabel(fRegCNN2ndstepModuleLabel, fRegCNN2ndstepResultLabel, cnnresultListHandle2ndstep);
+
+    art::Handle<std::vector<cnn::RegCNNResult>> cnnresultListHandle2;
+    evt.getByLabel(fRegCNNModule2Label, fRegCNNResult2Label, cnnresultListHandle2);
+
+    // Get RegCNN Results
+    if (!cnnresultListHandle.failedToGet())
+    {
+        if (!cnnresultListHandle->empty())
+        {
+            const std::vector<float>& v = (*cnnresultListHandle)[0].fOutput;
+            for (unsigned int ii = 0; ii < 3; ii++){
+                CVN_vertex[ii] = v[ii];
+            }
+        }
+    }
+
+    if (!cnnresultListHandle1ststep.failedToGet())
+    {
+        if (!cnnresultListHandle1ststep->empty())
+        {
+            const std::vector<float>& v = (*cnnresultListHandle1ststep)[0].fOutput;
+            for (unsigned int ii = 0; ii < 3; ii++){
+                CVN_vertex1ststep[ii] = v[ii];
+            }
+        }
+    }
+    if (!cnnresultListHandle2ndstep.failedToGet())
+    {
+        if (!cnnresultListHandle2ndstep->empty())
+        {
+            const std::vector<float>& v = (*cnnresultListHandle2ndstep)[0].fOutput;
+            for (unsigned int ii = 0; ii < 3; ii++){
+                CVN_vertex2ndstep[ii] = v[ii];
+            }
+        }
+    }
+
+    if (!cnnresultListHandle2.failedToGet())
+    {
+        if (!cnnresultListHandle2->empty())
+        {
+            const std::vector<float>& v = (*cnnresultListHandle2)[0].fOutput;
+            for (unsigned int ii = 0; ii < 3; ii++){
+                CVN_vertex2[ii] = v[ii];
+            }
+        }
+    }
+
+
+    //-----------------------------------------------------------------------------------------
+    // find the wire and tick of reconstructed vertices
+    double const regvtx_loc[3] = {(double)CVN_vertex[0], (double)CVN_vertex[1], (double)CVN_vertex[2]};
+    inTPC = ConvertXYZtoWireTDC(regvtx_loc, CVNVtxTPC, CVNVtxWire, CVNVtxTime,
+        CVNVtxGlobalPlane, CVNVtxGlobalWire, CVNVtxGlobalTick);
+    if (inTPC){
+    }
+
+    double const regvtx_loc2[3] = {(double)CVN_vertex2[0], (double)CVN_vertex2[1], (double)CVN_vertex2[2]};
+    inTPC = ConvertXYZtoWireTDC(regvtx_loc2, CVNVtx2TPC, CVNVtx2Wire, CVNVtx2Time,
+        CVNVtx2GlobalPlane, CVNVtx2GlobalWire, CVNVtx2GlobalTick);
+
   }
-
-
-  //-----------------------------------------------------------------------------------------
-  // find the wire and tick of reconstructed vertices
-  double const regvtx_loc[3] = {(double)CVN_vertex[0], (double)CVN_vertex[1], (double)CVN_vertex[2]};
-  inTPC = ConvertXYZtoWireTDC(regvtx_loc, CVNVtxTPC, CVNVtxWire, CVNVtxTime, 
-		  CVNVtxGlobalPlane, CVNVtxGlobalWire, CVNVtxGlobalTick);
-  if (inTPC){
-  }
-
-  double const regvtx_loc2[3] = {(double)CVN_vertex2[0], (double)CVN_vertex2[1], (double)CVN_vertex2[2]};
-  inTPC = ConvertXYZtoWireTDC(regvtx_loc2, CVNVtx2TPC, CVNVtx2Wire, CVNVtx2Time, 
-		  CVNVtx2GlobalPlane, CVNVtx2GlobalWire, CVNVtx2GlobalTick);
 
   //-----------------------------------------------------------------------------------------
   // for track info

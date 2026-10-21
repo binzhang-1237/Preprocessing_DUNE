@@ -83,10 +83,12 @@ physics:
     # regcnneventdump2b:    @local::standard_regcnneventdump_fhc
   }
 # reco: [ rns, emshowernew, mvaselectnue, energyreconue ]
- reco: [ rns, emshowernew, energyreconue, energyreconumu, 
-         energyreconuelse, regcnnmap, regcnneval, regcnnmapk, regcnnevalk, 
-	 regcnnmapz, regcnnevalz, regcnnmap2b, regcnneval2b
-	]
+ # Default preprocessing path: no RegCNN model inference or model pixel maps.
+ reco: [rns, emshowernew, energyreconue, energyreconumu, energyreconuelse]
+ # To enable RegCNN, replace the reco path above with this full path:
+ # reco: [rns, emshowernew, energyreconue, energyreconumu, energyreconuelse,
+ #        regcnnmap, regcnneval, regcnnmapk, regcnnevalk,
+ #        regcnnmapz, regcnnevalz, regcnnmap2b, regcnneval2b]
  myana: [ recoEnergy
 #	 , regcnneventdump1st, regcnneventdump2nd, regcnneventdump3rd
 #	 , regcnneventdump2, regcnneventdump2b
@@ -198,3 +200,22 @@ physics.producers.energyreconuelse.RecoMethod:   3
 # physics.analyzers.regcnneventdump1st.PixelMapInput: "regcnnmap"
 # physics.analyzers.regcnneventdump2nd.PixelMapInput: "regcnnmapk"
 # physics.analyzers.regcnneventdump3rd.PixelMapInput: "regcnnmapz"
+
+# RegCNN analyzer output switch. To enable the complete model chain, also
+# restore the full reco path and comment the eight @erase lines below.
+EnableRegCNN: false
+
+physics.analyzers.recoEnergy.EnableRegCNN: @local::EnableRegCNN
+
+# Disabled by default: remove unused model modules from the final configuration,
+# so their constructors cannot attempt to load .pb files.
+# To enable RegCNN, comment all eight @erase lines, set EnableRegCNN: true,
+# and restore the full reco path shown above. Original settings remain above.
+physics.producers.regcnnmap: @erase
+physics.producers.regcnneval: @erase
+physics.producers.regcnnmapk: @erase
+physics.producers.regcnnevalk: @erase
+physics.producers.regcnnmapz: @erase
+physics.producers.regcnnevalz: @erase
+physics.producers.regcnnmap2b: @erase
+physics.producers.regcnneval2b: @erase
