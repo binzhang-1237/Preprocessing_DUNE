@@ -97,6 +97,6 @@ printf 'LArSoft=%s\nROOT=%s\nlar=%s\nFHiCL=%s\nInput=%s\nEvents=%s\n' \
 
 
 # rm RootOutput*.root
-# rm TFileService*.root
+rm $WORK/TFileService*.root
 printf 'Starting lar at %s\n' "$(date -Is)" | tee "$LOG_FILE"
 stdbuf -oL -eL lar -n "$EVENTS" -c "$FCL_FILE" -s "$INPUT_FILE" 2>&1 | tee -a "$LOG_FILE"

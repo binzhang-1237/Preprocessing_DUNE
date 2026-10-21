@@ -1,0 +1,82 @@
+#include "services_dune.fcl"
+#include "calorimetry_dune10kt.fcl"
+#include "tools_dune.fcl"
+
+process_name: RecoEnergySOne2026
+
+services:
+{
+  TFileService: {
+    fileName: "RecoEnergyS_2026_one.root"
+    closeFileFast: false
+  }
+  @table::dunefd_reco_services
+  TimeTracker: {}
+  RandomNumberGenerator: {}
+  MemoryTracker: {}
+  message: @local::dune_message_services_prod
+  FileCatalogMetadata: @local::art_file_catalog_mc
+  @table::dunefd_1x2x6_simulation_services
+  Geometry: @local::dune10kt_1x2x6_v2_geo
+}
+
+services.Geometry: {
+  service_type: "Geometry"
+  Name: "dune10kt_v5_1x2x6"
+  GDML: "dune10kt_v5_refactored_1x2x6.gdml"
+  DisableWiresInG4: true
+  SortingParameters: { tool_type: GeoObjectSorterAPA ChannelsPerOpDet: 1 }
+  SurfaceY: 147828
+}
+services.AuxDetGeometry: @local::dune10kt_1x2x6_v5_refactored_auxdet_geo
+services.LArG4Detector.gdmlFileName_: "dune10kt_v5_refactored_1x2x6.gdml"
+services.BackTrackerService:
+{
+  BackTracker:
+  {
+    G4ModuleLabel: "largeant"
+    SimChannelModuleLabel: "largeant"
+    MinimumHitEnergyFraction: 0.1
+  }
+}
+services.ParticleInventoryService:
+{
+  ParticleInventory:
+  {
+    G4ModuleLabel: "largeant"
+    EveIdCalculator: "EmEveIdCalculator"
+  }
+}
+
+source: {
+  module_type: RootInput
+  maxEvents: 1
+}
+
+physics: {
+  analyzers: {
+    recoEnergy: {
+      module_type: "RecoEnergyS"
+      CalorimetryAlg: @local::dune10kt_calorimetryalgmc
+      HitsModuleLabel: "hitfd"
+      ClusterModuleLabel: "pandora"
+      ShowerModuleLabel: "pandoraShower"
+      TrackModuleLabel1: "pmtrack"
+      TrackModuleLabel2: "pandoraTrack"
+      RawDigitModuleLabel: "daq"
+      WireModuleLabel: "caldata"
+      GeantModuleLabel: "largeant"
+      VertexModuleLabel: "pandora"
+      PFParticleModuleLabel: "pandora"
+      PandoraNuVertexModuleLabel: "pandora"
+      MCGenModuleLabel: "generator"
+      GlobalWireMethod: 2
+      EnergyRecoNueLabel: "energyrecnue"
+      EnergyRecoNumuLabel: "energyrecnumu"
+      EnergyRecoNuelseLabel: "energyrecnc"
+      IsVD: false
+    }
+  }
+  myana: [recoEnergy]
+  end_paths: [myana]
+}
