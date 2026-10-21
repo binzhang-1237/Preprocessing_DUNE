@@ -6,6 +6,7 @@ __pycache__/
 # Logs and local editor files
 *.log
 .vscode/
+work/
 
 # Generated preprocessing data
 *.root
