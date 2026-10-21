@@ -88,3 +88,23 @@ include(ArtMake)
 include(BuildPlugins)
 
 add_subdirectory("${RECOENERGY_STUDIES_SOURCE}" RecoEnergyStudies)
+
+# Give field-response work histograms distinct names in the local service.
+# Generate a patched copy in the build directory; CVMFS sources stay read-only.
+find_path(RECO_DUNECORE_INCLUDE dunecore/Utilities/SignalShapingServiceDUNE.h
+    HINTS "$ENV{DUNECORE_INC}" "$ENV{DUNECORE_DIR}/include" REQUIRED)
+get_filename_component(RECO_DUNECORE_PREFIX "${RECO_DUNECORE_INCLUDE}" DIRECTORY)
+set(RECO_SIGNAL_SOURCE "${RECO_DUNECORE_PREFIX}/source/dunecore/Utilities/SignalShapingServiceDUNE_service.cc")
+set(RECO_SIGNAL_PATCH "${RECOENERGY_STUDIES_SOURCE}/patches/SignalShapingServiceDUNE_histogram_names.patch")
+set(RECO_SIGNAL_GENERATED "${CMAKE_CURRENT_BINARY_DIR}/SignalShapingServiceDUNE_service.cc")
+find_program(RECO_PATCH_EXECUTABLE patch REQUIRED)
+add_custom_command(OUTPUT "${RECO_SIGNAL_GENERATED}"
+    COMMAND "${RECO_PATCH_EXECUTABLE}" --batch --output "${RECO_SIGNAL_GENERATED}"
+            "${RECO_SIGNAL_SOURCE}" "${RECO_SIGNAL_PATCH}"
+    DEPENDS "${RECO_SIGNAL_SOURCE}" "${RECO_SIGNAL_PATCH}"
+    VERBATIM)
+add_library(SignalShapingServiceDUNE_service SHARED "${RECO_SIGNAL_GENERATED}")
+target_include_directories(SignalShapingServiceDUNE_service PRIVATE "${RECO_DUNECORE_INCLUDE}")
+get_target_property(RECO_SIGNAL_LIBRARIES RecoEnergyS_module LINK_LIBRARIES)
+target_link_libraries(SignalShapingServiceDUNE_service PRIVATE
+    ${RECO_SIGNAL_LIBRARIES} ROOT::Hist ROOT::RIO lardata_Utilities_LArFFT)

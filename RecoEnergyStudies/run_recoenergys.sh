@@ -86,7 +86,7 @@ source "$ROOT_RUNTIME/bin/thisroot.sh"
 unset CPATH C_INCLUDE_PATH CPLUS_INCLUDE_PATH OBJC_INCLUDE_PATH
 unset PYTHONHOME
 
-export LD_LIBRARY_PATH="$HOME/local/usr/lib/x86_64-linux-gnu:$HOME/local/jpeg/lib:/usr/lib/x86_64-linux-gnu:$ROOT_LOCAL/lib:${LD_LIBRARY_PATH:-}"
+export LD_LIBRARY_PATH="$BUILD_DIR/lib:$HOME/local/usr/lib/x86_64-linux-gnu:$HOME/local/jpeg/lib:/usr/lib/x86_64-linux-gnu:$ROOT_LOCAL/lib:${LD_LIBRARY_PATH:-}"
 export FHICL_FILE_PATH="$(dirname "$FCL_FILE")${FHICL_FILE_PATH:+:$FHICL_FILE_PATH}"
 export CET_PLUGIN_PATH="$BUILD_DIR/lib${CET_PLUGIN_PATH:+:$CET_PLUGIN_PATH}"
 

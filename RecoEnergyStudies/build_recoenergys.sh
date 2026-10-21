@@ -171,4 +171,4 @@ cmake -S "$CMAKE_SOURCE_DIR" -B "$BUILD_DIR" \
     -DLARSOFT_DUNE_BUILD_DIR="$WORK/build_slf7.x86_64/dunereco" \
     -DGeant4_DIR="$(dirname "$GEANT4_CONFIG")"
 printf '[build] Building RecoEnergyS_module\n'
-cmake --build "$BUILD_DIR" --target RecoEnergyS_module --parallel "$JOBS"
+cmake --build "$BUILD_DIR" --target RecoEnergyS_module SignalShapingServiceDUNE_service --parallel "$JOBS"

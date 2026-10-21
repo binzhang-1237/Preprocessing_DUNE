@@ -1,0 +1,7 @@
+--- a/SignalShapingServiceDUNE_service.cc
++++ b/SignalShapingServiceDUNE_service.cc
+@@ -173,2 +173,2 @@
+-      fFieldResponseHist[i] = new TH1F( iHistoName, iHistoName, temp->GetNbinsX(), temp->GetBinLowEdge(1), temp->GetBinLowEdge( temp->GetNbinsX() + 1) );
+-      temp->Copy(*fFieldResponseHist[i]);
++      const TString copyName = iHistoName + "_signal_shaping_copy";
++      fFieldResponseHist[i] = static_cast<TH1F*>(temp->Clone(copyName));
