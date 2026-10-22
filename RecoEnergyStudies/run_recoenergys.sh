@@ -12,7 +12,7 @@ BUILD_DIR="$WORK/build_recoenergys_slf7.x86_64"
 LOCAL_PRODUCTS="$WORK/localProducts_larsoft_${LARSOFT_VERSION}_e26_prof"
 FCL_FILE="${FCL_FILE:-/home/binzhang/disk_binzhang/preprocessing_multi_production/RecoEnergyStudies/recoenergys_2018.fcl}"
 INPUT_FILE="${1:-/mnt/ironwolf_14t2/users/jiaxi/dune2018mc/nu_dune10kt_1x2x6_12855866_0_20181104T211351_gen_g4_detsim_reco.root}"
-EVENTS="${2:-10}"
+EVENTS="${2:-100}"
 LOG_FILE="/home/binzhang/disk_binzhang/preprocessing_multi_production/RecoEnergyStudies/run_recoenergys.log"
 
 [[ -f "$WORK/setup_dune.sh" ]] || { echo "Missing $WORK/setup_dune.sh" >&2; exit 1; }
@@ -96,7 +96,9 @@ printf 'LArSoft=%s\nROOT=%s\nlar=%s\nFHiCL=%s\nInput=%s\nEvents=%s\n' \
     "$FCL_FILE" "$INPUT_FILE" "$EVENTS"
 
 
-# rm RootOutput*.root
-rm $WORK/TFileService*.root
 printf 'Starting lar at %s\n' "$(date -Is)" | tee "$LOG_FILE"
 stdbuf -oL -eL lar -n "$EVENTS" -c "$FCL_FILE" -s "$INPUT_FILE" 2>&1 | tee -a "$LOG_FILE"
+# rm RootOutput*.root
+rm $WORK/TFileService*.root || true
+mv $WORK/RecoEnergyS.root /home/binzhang/disk_binzhang/preprocessing_multi_production/RecoEnergyStudies/RecoEnergyS.root
+
