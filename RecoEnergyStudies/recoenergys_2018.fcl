@@ -59,9 +59,12 @@ physics:
     # energyreconue:    @local::dunefd_nuenergyreco
     # energyreconumu:   @local::dunefd_nuenergyreco
     # energyreconuelse: @local::dunefd_nuenergyreco
-    energyreconue:    @local::dunefd_nuenergyreco_pandora_nue
-    energyreconumu:   @local::dunefd_nuenergyreco_pandora_numu
-    energyreconuelse: @local::dunefd_nuenergyreco_pandora_nc
+    energyreconue:    @local::dunefd_nuenergyreco_pmtrack
+    energyreconumu:   @local::dunefd_nuenergyreco_pmtrack
+    energyreconuelse: @local::dunefd_nuenergyreco_pmtrack
+    # energyreconue:    @local::dunefd_nuenergyreco_pandora_nue
+    # energyreconumu:   @local::dunefd_nuenergyreco_pandora_numu
+    # energyreconuelse: @local::dunefd_nuenergyreco_pandora_nc
     regcnnmap:        @local::standard_regcnnmapper
     regcnneval:       @local::standard_regcnnevaluator
     regcnnmapk:       @local::standard_regcnnmapper
