@@ -38,6 +38,8 @@ void analysis_RecoEnergyStudies_outputs::Loop()
   gStyle->SetPaperSize(27.94,19.05);
   const std::filesystem::path outputDir=std::filesystem::absolute(outputDirectory);
   std::filesystem::create_directories(outputDir);
+  const auto plotDir=outputDir/"plot";
+  std::filesystem::create_directories(plotDir);
 
   // One entry per leaf, in the same order as the MakeClass declarations.
   std::vector<Variable> vars;
@@ -385,7 +387,8 @@ void analysis_RecoEnergyStudies_outputs::Loop()
     if (!leaf || v.type!=leaf->GetTypeName())
       throw std::runtime_error("Missing or changed leaf: "+v.name);
   }
-  const Long64_t nentries=fChain->GetEntriesFast();
+  // GetEntriesFast() may be an unknown-size sentinel for a TChain.
+  const Long64_t nentries=fChain->GetEntries();
   std::cout<<"Tree: recoEnergy/WC\nEntries: "<<nentries<<"\nLeaves: "<<vars.size()<<std::endl;
 
   // First pass measures ranges, second pass fills the TH1D objects.
@@ -802,8 +805,9 @@ void analysis_RecoEnergyStudies_outputs::Loop()
     v.hist->Draw("HIST");
     canvas.Modified(); canvas.Update();
     canvas.Print(pdfPath.c_str(),"pdf");
+    canvas.SaveAs((plotDir/(v.name+".png")).c_str());
   }
   canvas.Print((pdfPath.string()+"]").c_str());
   output.Close();
-  std::cout<<"Saved "<<vars.size()<<" histograms to "<<rootPath<<"\nPDF: "<<pdfPath<<std::endl;
+  std::cout<<"Saved "<<vars.size()<<" histograms to "<<rootPath<<"\nPDF: "<<pdfPath<<"\nPNG directory: "<<plotDir<<std::endl;
 }

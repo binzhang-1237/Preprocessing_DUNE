@@ -28,6 +28,7 @@ public :
 
    // User addition: output directory used by Loop().
    std::string outputDirectory = "outputs";
+   bool ownsInputFile = false; // Only own the file opened by the default constructor.
    TTree          *fChain;   //!pointer to the analyzed TTree or TChain
    Int_t           fCurrent; //!current Tree number in a TChain
 
@@ -726,6 +727,7 @@ analysis_RecoEnergyStudies_outputs::analysis_RecoEnergyStudies_outputs(TTree *tr
 // if parameter tree is not specified (or zero), connect the file
 // used to generate this class and read the Tree.
    if (tree == 0) {
+      ownsInputFile = true;
       TFile *f = (TFile*)gROOT->GetListOfFiles()->FindObject("/home/binzhang/disk_binzhang/preprocessing_multi_production/RecoEnergyStudies/RecoEnergyS.root");
       if (!f || !f->IsOpen()) {
          f = new TFile("/home/binzhang/disk_binzhang/preprocessing_multi_production/RecoEnergyStudies/RecoEnergyS.root");
@@ -740,7 +742,9 @@ analysis_RecoEnergyStudies_outputs::analysis_RecoEnergyStudies_outputs(TTree *tr
 analysis_RecoEnergyStudies_outputs::~analysis_RecoEnergyStudies_outputs()
 {
    if (!fChain) return;
-   delete fChain->GetCurrentFile();
+   // An externally supplied TTree/TChain and its files belong to the caller.
+   fChain->ResetBranchAddresses();
+   if (ownsInputFile) delete fChain->GetCurrentFile();
 }
 
 Int_t analysis_RecoEnergyStudies_outputs::GetEntry(Long64_t entry)
