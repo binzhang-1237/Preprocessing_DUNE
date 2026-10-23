@@ -3,16 +3,17 @@
 set -eo pipefail
 
 # Reproducible local runtime for the 2018-production TransformerCVN job.
-WORK="$HOME/disk_binzhang/larsoft_v10_02_02"
-LARSOFT_VERSION="v10_02_02"
-DUNE_RELEASE_VERSION="v10_02_02d00"
+WORK="${WORK:-$HOME/disk_binzhang/larsoft_v10_02_02}"
+LARSOFT_VERSION="${LARSOFT_VERSION:-v10_02_02}"
+DUNE_RELEASE_VERSION="${DUNE_RELEASE_VERSION:-v10_02_02d00}"
 ROOT_LOCAL="$HOME/root-local-6.28.12"
 ROOT_RUNTIME="$ROOT_LOCAL"
 BUILD_DIR="$WORK/build_recoenergys_slf7.x86_64"
 LOCAL_PRODUCTS="$WORK/localProducts_larsoft_${LARSOFT_VERSION}_e26_prof"
 FCL_FILE="${FCL_FILE:-/home/binzhang/disk_binzhang/preprocessing_multi_production/RecoEnergyStudies/recoenergys_2018.fcl}"
-INPUT_FILE="${1:-/mnt/ironwolf_14t2/users/jiaxi/dune2018mc/nu_dune10kt_1x2x6_12855866_0_20181104T211351_gen_g4_detsim_reco.root}"
+INPUT_FILE="${1:-/mnt/ironwolf_14t2/users/jiaxi/dune2018mc/nue_dune10kt_1x2x6_13024073_0_20181109T155338_gen_g4_detsim_reco.root}"
 EVENTS="${2:-100}"
+OUTPUT_FILE="${3:-/home/binzhang/disk_binzhang/preprocessing_multi_production/RecoEnergyStudies/RecoEnergyS.root}"
 LOG_FILE="/home/binzhang/disk_binzhang/preprocessing_multi_production/RecoEnergyStudies/run_recoenergys.log"
 
 [[ -f "$WORK/setup_dune.sh" ]] || { echo "Missing $WORK/setup_dune.sh" >&2; exit 1; }
@@ -100,5 +101,5 @@ printf 'Starting lar at %s\n' "$(date -Is)" | tee "$LOG_FILE"
 stdbuf -oL -eL lar -n "$EVENTS" -c "$FCL_FILE" -s "$INPUT_FILE" 2>&1 | tee -a "$LOG_FILE"
 # rm RootOutput*.root
 rm $WORK/TFileService*.root || true
-mv $WORK/RecoEnergyS.root /home/binzhang/disk_binzhang/preprocessing_multi_production/RecoEnergyStudies/RecoEnergyS.root
+mv $WORK/RecoEnergyS.root $OUTPUT_FILE
 

@@ -1,0 +1,201 @@
+#include "services_dune.fcl"
+#include "recoenergystudies_2026.fcl"
+#include "pandoramodules_dune.fcl"
+#include "trackshowerhits.fcl"
+#include "trackfindermodules_dune.fcl"
+#include "showerfindermodules_dune.fcl"
+#include "emshower3d.fcl"
+#include "mvamodule.fcl"
+#include "energyreco.fcl"
+# #include "RegCNNEventDump.fcl"
+#include "RegCNNMapper.fcl"
+#include "RegCNNEvaluator.fcl"
+#include "tools_dune.fcl"
+
+process_name: RecoEnergyS
+
+services:
+{
+  TFileService: { fileName: "RecoEnergyS.root" }
+        @table::dunefd_reco_services
+  MemoryTracker:     {}
+  TimeTracker:       {}
+  RandomNumberGenerator: {} #ART native random number generator
+  message:              @local::dune_message_services_prod
+  FileCatalogMetadata:  @local::art_file_catalog_mc
+                        @table::dunefd_reco_services
+}
+
+source:
+{
+  module_type: RootInput
+  maxEvents:  -1        # Number of events to create
+}
+# RootOutput is not scheduled: stream1 is not an active end_path.
+# The RecoEnergyS analyzer writes its tree through TFileService above.
+# outputs:
+# {
+#   out1:
+#   {
+#     module_type: RootOutput
+#     #fileName:    "%ifb_%tc_recoE.root"
+#     fileName:    "test_recoE.root"
+#     dataTier:    "full-reconstructed"
+#     compressionLevel: 1
+#   }
+# }
+
+physics:
+{
+  producers:
+  {
+    rns:                      { module_type: RandomNumberSaver }
+    # Not scheduled on reco; retained here as reference.
+    # mvaselectnue:     @local::dunefd_mvaselect
+    # mvaselectnumu:    @local::dunefd_mvaselect
+    energyreconue:    @local::dunefd_nuenergyreco_pandora_nue
+    energyreconumu:   @local::dunefd_nuenergyreco_pandora_numu
+    energyreconuelse: @local::dunefd_nuenergyreco_pandora_nc
+    regcnnmap:        @local::standard_regcnnmapper
+    regcnneval:       @local::standard_regcnnevaluator
+    regcnnmapk:       @local::standard_regcnnmapper
+    regcnnevalk:      @local::standard_regcnnevaluator
+    regcnnmapz:       @local::standard_regcnnmapper
+    regcnnevalz:      @local::standard_regcnnevaluator
+    regcnnmap2b:      @local::standard_regcnnmapper
+    regcnneval2b:     @local::standard_regcnnevaluator
+
+  }
+  analyzers:
+  {
+    recoEnergy:             @local::recoenergys
+    # Not scheduled on myana.
+    # regcnneventdump1st:   @local::standard_regcnneventdump_fhc
+    # regcnneventdump2nd:   @local::standard_regcnneventdump_fhc
+    # regcnneventdump3rd:   @local::standard_regcnneventdump_fhc
+    # regcnneventdump2:     @local::standard_regcnneventdump_fhc
+    # regcnneventdump2b:    @local::standard_regcnneventdump_fhc
+  }
+# reco: [ rns, emshowernew, mvaselectnue, energyreconue ]
+ # Default preprocessing path: no RegCNN model inference or model pixel maps.
+ reco: [rns, energyreconue, energyreconumu, energyreconuelse]
+ # To enable RegCNN, replace the reco path above with this full path:
+ # reco: [rns, emshowernew, energyreconue, energyreconumu, energyreconuelse,
+ #        regcnnmap, regcnneval, regcnnmapk, regcnnevalk,
+ #        regcnnmapz, regcnnevalz, regcnnmap2b, regcnneval2b]
+ myana: [ recoEnergy
+#	 , regcnneventdump1st, regcnneventdump2nd, regcnneventdump3rd
+#	 , regcnneventdump2, regcnneventdump2b
+ ]
+ # stream1 is inactive; there is no RootOutput module in the active paths.
+
+ trigger_paths: [reco]
+ end_paths: [ myana ]
+ #end_paths: [ stream1 ]
+ #out: [ stream1 ]
+
+}
+
+physics.producers.regcnnmap.GlobalWireMethod: 2
+# The input ROOT file stores recob::Wire as caldata__Reco, not
+# tpcrawdecoder:gauss. Override the inherited Pandora EnergyReco label.
+#physics.producers.energyreconue.WireLabel: "caldata"
+#physics.producers.energyreconumu.WireLabel: "caldata"
+#physics.producers.energyreconuelse.WireLabel: "caldata"
+physics.producers.regcnneval.TFNetHandler.LibPath: "MRB_INSTALL"
+physics.producers.regcnneval.Target: "nuevertex"
+physics.producers.regcnneval.TFNetHandler.NInputs: 4
+physics.producers.regcnneval.TFNetHandler.TFProtoBuf: "duneRegCNNNetwork/dune_nue_vertices_20190211-114359.pb"
+
+physics.producers.regcnnmapk.GlobalWireMethod: 2
+physics.producers.regcnnmapk.WireLength: 100
+physics.producers.regcnnmapk.TdcWidth: 70
+physics.producers.regcnnmapk.UseRecoVertex: 1
+physics.producers.regcnnmapk.ClusterPMLabel: "regcnnmapk"
+physics.producers.regcnnevalk.PixelMapInput: "regcnnmapk"
+physics.producers.regcnnevalk.ResultLabel: "regcnnresultk"
+physics.producers.regcnnevalk.TFNetHandler.LibPath: "MRB_INSTALL"
+physics.producers.regcnnevalk.Target: "nuevertex"
+physics.producers.regcnnevalk.TFNetHandler.NInputs: 4
+physics.producers.regcnnevalk.TFNetHandler.TFProtoBuf: "duneRegCNNNetwork/dune_nue_vertices_20190225-213320.pb"
+
+physics.producers.regcnnmapz.GlobalWireMethod: 2
+physics.producers.regcnnmapz.WireLength: 42
+physics.producers.regcnnmapz.TdcWidth: 24
+physics.producers.regcnnmapz.UseRecoVertex: 1
+physics.producers.regcnnmapz.RegCNNResultLabel: "regcnnresultk"
+physics.producers.regcnnmapz.RegCNNModuleLabel: "regcnnevalk"
+physics.producers.regcnnmapz.ClusterPMLabel: "regcnnmapz"
+physics.producers.regcnnevalz.PixelMapInput: "regcnnmapz"
+physics.producers.regcnnevalz.ResultLabel: "regcnnresultz"
+physics.producers.regcnnevalz.TFNetHandler.LibPath: "MRB_INSTALL"
+physics.producers.regcnnevalz.Target: "nuevertex"
+physics.producers.regcnnevalz.TFNetHandler.NInputs: 4
+physics.producers.regcnnevalz.TFNetHandler.TFProtoBuf: "duneRegCNNNetwork/dune_nue_vertices_20190411-130923.pb"
+
+
+physics.producers.regcnnmap2b.GlobalWireMethod: 2
+physics.producers.regcnnmap2b.WireLength: 600
+physics.producers.regcnnmap2b.TdcWidth: 280
+physics.producers.regcnnmap2b.UseRecoVertex: 0
+physics.producers.regcnnmap2b.ClusterPMLabel: "regcnnmap2b"
+physics.producers.regcnneval2b.PixelMapInput: "regcnnmap2b"
+physics.producers.regcnneval2b.ResultLabel: "regcnnresult2b"
+physics.producers.regcnneval2b.Target: "nuevertex_on_img"
+
+physics.producers.regcnneval2b.RegCNNVtxHandler.GlobalWireMethod: 2
+physics.producers.regcnneval2b.RegCNNVtxHandler.WireLength: 42
+physics.producers.regcnneval2b.RegCNNVtxHandler.TdcWidth: 24
+physics.producers.regcnneval2b.RegCNNVtxHandler.TFNetHandler1st.LibPath: "MRB_INSTALL"
+physics.producers.regcnneval2b.RegCNNVtxHandler.TFNetHandler1st.NInputs: 3
+physics.producers.regcnneval2b.RegCNNVtxHandler.TFNetHandler1st.TFProtoBuf: "duneRegCNNNetwork/dune_nue_vertices_on_img_20190423-213724.pb"
+physics.producers.regcnneval2b.RegCNNVtxHandler.TFNetHandler2nd.LibPath: "MRB_INSTALL"
+physics.producers.regcnneval2b.RegCNNVtxHandler.TFNetHandler2nd.NInputs: 4
+#physics.producers.regcnneval2b.RegCNNVtxHandler.TFNetHandler2nd.TFProtoBuf: "duneRegCNNNetwork/dune_nue_vertices_cascade_20190429-141848.pb"
+physics.producers.regcnneval2b.RegCNNVtxHandler.TFNetHandler2nd.TFProtoBuf: "duneRegCNNNetwork/dune_vtximg__targets_verticestraining_20190517-152803.pb"
+
+
+physics.analyzers.recoEnergy.RegCNNModule2Label: "regcnneval2b"
+physics.analyzers.recoEnergy.RegCNNResult2Label: "regcnnresult2b"
+
+services.Geometry: @local::dune10kt_1x2x6_v5_refactored_geo
+# Match the auxiliary-detector geometry to the 2026-production v5 geometry.
+services.AuxDetGeometry: @local::dune10kt_1x2x6_v5_refactored_auxdet_geo
+
+# Not scheduled; neither MVA selector is in the active reco path.
+# physics.producers.mvaselectnue.MVAMethod:  "BDTG"
+# physics.producers.mvaselectnue.Select:  "nue"
+# physics.producers.mvaselectnue.WeightFile: "MVASelect/v2.2/TMVAClassification_BDTG.nue.weights.xml"
+
+physics.producers.energyreconue.RecoMethod:   2
+
+# physics.producers.mvaselectnumu.MVAMethod:  "BDTG"
+# physics.producers.mvaselectnumu.Select:  "numu"
+# physics.producers.mvaselectnumu.WeightFile: "MVASelect/v2.2/TMVAClassification_BDTG.numu.weights.xml"
+physics.producers.energyreconumu.RecoMethod:   1
+
+physics.producers.energyreconuelse.RecoMethod:   3
+
+# These parameters apply only to the inactive event-dump analyzers.
+# physics.analyzers.regcnneventdump1st.PixelMapInput: "regcnnmap"
+# physics.analyzers.regcnneventdump2nd.PixelMapInput: "regcnnmapk"
+# physics.analyzers.regcnneventdump3rd.PixelMapInput: "regcnnmapz"
+
+# RegCNN analyzer output switch. To enable the complete model chain, also
+# restore the full reco path and comment the eight @erase lines below.
+EnableRegCNN: false
+
+physics.analyzers.recoEnergy.EnableRegCNN: @local::EnableRegCNN
+
+# Disabled by default: remove unused model modules from the final configuration,
+# so their constructors cannot attempt to load .pb files.
+# To enable RegCNN, comment all eight @erase lines, set EnableRegCNN: true,
+# and restore the full reco path shown above. Original settings remain above.
+physics.producers.regcnnmap: @erase
+physics.producers.regcnneval: @erase
+physics.producers.regcnnmapk: @erase
+physics.producers.regcnnevalk: @erase
+physics.producers.regcnnmapz: @erase
+physics.producers.regcnnevalz: @erase
+physics.producers.regcnnmap2b: @erase
+physics.producers.regcnneval2b: @erase

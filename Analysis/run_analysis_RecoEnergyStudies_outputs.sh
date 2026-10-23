@@ -3,8 +3,8 @@ set -eo pipefail
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/root_environment.sh"
 # Defaults require no arguments; edit these paths or set environment overrides.
-INPUT_FILE="${INPUT_FILE:-$SCRIPT_DIR/../RecoEnergyStudies/RecoEnergyS.root}"
-OUTPUT_DIR="${OUTPUT_DIR:-$SCRIPT_DIR/outputs}"
+INPUT_FILE="${1:-$SCRIPT_DIR/../RecoEnergyStudies/RecoEnergyS.root}"
+OUTPUT_DIR="${2:-$SCRIPT_DIR/outputs_2018}"
 PROGRAM="$SCRIPT_DIR/build/analysis_RecoEnergyStudies_outputs"
 [[ -f "$INPUT_FILE" ]] || { echo "Missing input: $INPUT_FILE" >&2; exit 1; }
 [[ -x "$PROGRAM" ]] || { echo "Run $SCRIPT_DIR/build_analysis_RecoEnergyStudies_outputs.sh first" >&2; exit 1; }
