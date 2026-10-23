@@ -8,7 +8,7 @@ auto tree = f.Get<TTree>("recoEnergy/WC");
 tree->MakeClass("analysis_RecoEnergyStudies_outputs");
 ```
 
-- `analysis_RecoEnergyStudies_outputs.h`：MakeClass 生成的全部 leaf 成员、branch 指针、Init/SetBranchAddress、GetEntry、LoadTree 等。只补充了输出目录成员、std::vector 限定和默认文件绝对路径。
+- `analysis_RecoEnergyStudies_outputs.h`：MakeClass 生成的全部 leaf 成员、branch 指针、Init/SetBranchAddress、GetEntry、LoadTree 等。补充了输出目录成员、std::vector 限定、默认文件绝对路径，以及兼容 2018/2026 样本的数组容量。
 - `analysis_RecoEnergyStudies_outputs.cc`：实现生成类的 Loop()；声明每个 leaf 的直方图描述，使用 LoadTree/GetEntry 读取类成员，逐项遍历标量、数组、vector，填充直方图并保存、绘图。修改分析请从这里入手。
 - `main_analysis_RecoEnergyStudies_outputs.cc`：打开输入文件，创建分析类并调用 Loop()。类放在堆上，避免大数组导致栈溢出。
 
@@ -23,9 +23,11 @@ tree->MakeClass("analysis_RecoEnergyStudies_outputs");
 
 每个数值元素填充一次。数组、嵌套 vector 展平统计；变长数组只读实际长度，二维固定维度全部纳入。两遍遍历：先测范围，再创建和填充 100 个等宽 bin。不归一化，不筛选 -999 等占位值；NaN/Inf 跳过并统计。空 leaf 保留空直方图。
 
-MakeClass 数组容量由当前输入文件生成。Loop 在每次读取数组前先读长度并检查容量，超限报错；输入 schema 改变时也会报错。更换文件后若容量不够，应重新 MakeClass 并同步头文件；如新增/删除 leaf，还要同步 Loop 的变量及填充列表。build 不会覆盖手动编写的 Loop。
+MakeClass 分支结构保留，数组容量统一与上游 RecoEnergyS_module.cc 的固定缓冲区对齐：kMaxHits=50000、kMax=3000、kMaxClst=100，不再按单个样本最大值分配。Loop 在每次读取数组前先读长度并检查容量，超限报错；输入 schema 改变时也会报错。如上游扩大容量或新增/删除 leaf，需要同步头文件及 Loop。build 不会覆盖手动编写的 Loop。
 
 可通过 INPUT_FILE、OUTPUT_DIR、ROOT_LOCAL、CXX 环境变量覆盖路径或工具。重新运行覆盖同名结果，输入保持只读。build/outputs 被 gitignore 排除。
+
+hit/shower-hit/wire 数组第一维使用 kMaxHits；truth/track/shower/cluster 数组使用 kMax；二维 wire 数组第二维使用 kMaxClst。同一可执行程序用于 2018 和 2026 输出，保留完整数据及越界保护。
 
 ## 2018 / 2026 逐图叠加比较
 
