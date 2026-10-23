@@ -26,3 +26,15 @@ tree->MakeClass("analysis_RecoEnergyStudies_outputs");
 MakeClass 数组容量由当前输入文件生成。Loop 在每次读取数组前先读长度并检查容量，超限报错；输入 schema 改变时也会报错。更换文件后若容量不够，应重新 MakeClass 并同步头文件；如新增/删除 leaf，还要同步 Loop 的变量及填充列表。build 不会覆盖手动编写的 Loop。
 
 可通过 INPUT_FILE、OUTPUT_DIR、ROOT_LOCAL、CXX 环境变量覆盖路径或工具。重新运行覆盖同名结果，输入保持只读。build/outputs 被 gitignore 排除。
+
+## 2018 / 2026 逐图叠加比较
+
+```bash
+./run_compare_RecoEnergyStudies_outputs.sh
+```
+
+默认比较 `outputs_2018/RecoEnergyStudies_histograms.root` 与 `outputs_2026/RecoEnergyStudies_histograms.root`，按相同直方图名字配对。首次运行或修改 C++ 后会自动编译；也可单独运行 `./build_compare_RecoEnergyStudies_outputs.sh`。
+
+可选参数依次为 2018 ROOT、2026 ROOT、输出目录。默认输出 `comparison_2018_vs_2026/`，包含汇总 PDF、`plots/` 中逐变量 PNG、保存原始直方图和对比画布的 ROOT，以及 comparison_summary.csv 和日志。蓝色实线代表 2018，红色虚线代表 2026。
+
+仅叠加原始计数：不归一化，不重分箱，不画比值，保留占位值。两份输入的自动分箱可能不同，程序将坐标范围扩至两者并集，保持各自原始 bin；有差异时图上标注，CSV 也记录。纵轴是每个原始 bin 的计数，分箱不同可能影响峰高比较。空直方图同样输出；输入 ROOT 文件只读。重新运行覆盖同名比较输出。
