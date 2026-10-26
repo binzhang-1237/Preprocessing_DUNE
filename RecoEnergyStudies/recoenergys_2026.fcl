@@ -199,3 +199,5 @@ physics.producers.regcnnmapz: @erase
 physics.producers.regcnnevalz: @erase
 physics.producers.regcnnmap2b: @erase
 physics.producers.regcnneval2b: @erase
+
+physics.analyzers.recoEnergy.SaveClustersShowersTracksAssnPFParticle: true

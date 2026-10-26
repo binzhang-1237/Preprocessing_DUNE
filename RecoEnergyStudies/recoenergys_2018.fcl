@@ -146,6 +146,7 @@ physics.analyzers.recoEnergy.RegCNNModuleLabel: "regcnnevalz"
 physics.analyzers.recoEnergy.RegCNNResultLabel: "regcnnresultz"
 physics.analyzers.recoEnergy.ShowerModuleLabel: "emshowernew"
 
+
 physics.producers.regcnnmap2b.GlobalWireMethod: 2
 physics.producers.regcnnmap2b.WireLength: 600
 physics.producers.regcnnmap2b.TdcWidth: 280

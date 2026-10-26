@@ -450,6 +450,14 @@ private:
   std::vector<std::vector<int>> hit_rawadc;
   std::vector<std::vector<int>> hit_rawtick;
 
+  //Clusters, showers, and tracks associated with PFParticle:
+  // std::vector<int> pfp_track_index;//index of pandora track collection
+  std::vector<int> pfp_track_pdgcode;
+  std::vector<int> pfp_track_is_track;//IsTrack():0/1
+  //track-hit association:
+  std::vector<int> pfp_track_nhits;
+  std::vector<int> pfp_track_hit_indices;//index of the hit_*[kMaxHits]
+
   // make new wire index for the pixel map
 
   int n_wires;
@@ -528,7 +536,7 @@ private:
   std::string fClusterModuleLabel;
   std::string fShowerModuleLabel;
   std::string fTrackModuleLabel1;
-  std::string fTrackModuleLabel2;
+  std::string fTrackModuleLabel2;//pandora track
   std::string fRawDigitModuleLabel;
   std::string fVertexModuleLabel;
   std::string fPFParticleModuleLabel;
@@ -548,6 +556,8 @@ private:
 
   std::string fRegCNNModule2Label;
   std::string fRegCNNResult2Label;
+
+  bool fSaveClustersShowersTracksAssnPFParticle;
 
   int fGlobalWireMethod;
 
@@ -979,6 +989,14 @@ recoestudy::RecoEnergyS::RecoEnergyS(fhicl::ParameterSet const &pset)
   fTree->Branch("PFVtxGlobalWire", PFVtxGlobalWire, "PFVtxGlobalWire[3]/D");
   fTree->Branch("PFVtxGlobalTick", PFVtxGlobalTick, "PFVtxGlobalTick[3]/D");
   fTree->Branch("PFVtxGlobalPlane", PFVtxGlobalPlane, "PFVtxGlobalPlane[3]/D");
+  if(fSaveClustersShowersTracksAssnPFParticle){
+    //
+    // fTree->Branch("pfp_track_index", &pfp_track_index);
+    fTree->Branch("pfp_track_pdgcode", &pfp_track_pdgcode);
+    fTree->Branch("pfp_track_is_track", &pfp_track_is_track);
+    fTree->Branch("pfp_track_nhits", &pfp_track_nhits);
+    fTree->Branch("pfp_track_hit_indices", &pfp_track_hit_indices);
+  }
 }
 
 void recoestudy::RecoEnergyS::reconfigure(fhicl::ParameterSet const &pset) {
@@ -1007,6 +1025,7 @@ void recoestudy::RecoEnergyS::reconfigure(fhicl::ParameterSet const &pset) {
     fRegCNNModule2Label = pset.get<std::string>("RegCNNModule2Label");
     fRegCNNResult2Label = pset.get<std::string>("RegCNNResult2Label");
   }
+  fSaveClustersShowersTracksAssnPFParticle = pset.get<bool>("SaveClustersShowersTracksAssnPFParticle", false);
 
   ievt = -999;
 
@@ -1162,25 +1181,38 @@ void recoestudy::RecoEnergyS::analyze(art::Event const &evt) {
 
   art::FindManyP<recob::Cluster> fmc(hitHandle, evt, fClusterModuleLabel);
 
+  //**************Orginal method to get clusters, showers, and tracks: ****************
   // Get the emshower out of the event record
   art::Handle<std::vector<recob::Shower>> showerHandle;
   std::vector<art::Ptr<recob::Shower>> showers;
   if (evt.getByLabel(fShowerModuleLabel, showerHandle))
     art::fill_ptr_vector(showers, showerHandle);
-
   art::FindManyP<recob::Cluster> fmshc(showerHandle, evt, fClusterModuleLabel);
-
   // Get the pmtrack out of the event record
   art::Handle<std::vector<recob::Track>> trackHandle1;
   std::vector<art::Ptr<recob::Track>> tracks_pmtrack;
   if (evt.getByLabel(fTrackModuleLabel1, trackHandle1))
     art::fill_ptr_vector(tracks_pmtrack, trackHandle1);
-
   // Get the pandoratrack out of the event record
   art::Handle<std::vector<recob::Track>> trackHandle2;
   std::vector<art::Ptr<recob::Track>> tracks_pand;
   if (evt.getByLabel(fTrackModuleLabel2, trackHandle2))
     art::fill_ptr_vector(tracks_pand, trackHandle2);
+  //**************Orginal method to get clusters, showers, and tracks: ****************
+
+
+
+  //##############New method using PFParticle to get clusters, showers, and tracks: #####################
+  //PFParticle to Cluster to Hits: one hit list per PFParticle
+  auto pfParticleHandle = evt.getHandle<std::vector<recob::PFParticle>>(fPFParticleModuleLabel);
+  art::FindManyP<recob::Cluster> fmPFParticleToCluster(pfParticleHandle, evt, fPFParticleModuleLabel);
+  art::FindManyP<recob::Shower> fmPFParticleToShower(pfParticleHandle, evt, fShowerModuleLabel);
+  art::FindManyP<recob::Track> fmPFParticleToTrack(pfParticleHandle, evt, fTrackModuleLabel2);//pandora track
+  std::cout << "*****Assn with PFParticle: clusters_valid=" << fmPFParticleToCluster.isValid()
+            << ", showers_valid=" << fmPFParticleToShower.isValid()
+            << ", tracks_valid=" << fmPFParticleToTrack.isValid()
+            << std::endl;
+  //##############New method using PFParticle to get clusters, showers, and tracks: #####################
 
   // Get the vertex out of the event record
   art::Handle<std::vector<recob::Vertex>> vertexHandle;
@@ -1270,8 +1302,8 @@ void recoestudy::RecoEnergyS::analyze(art::Event const &evt) {
     }
     nu_truth_N = neutrino_i;
   }
-  // skip NC events
-  if (nuccnc_truth[0] == 1)
+  // skip NC events, &&false: remove this to include NC events
+  if (nuccnc_truth[0] == 1 && false)
     return;
 
   // Get DUNE energy Reco
@@ -1456,7 +1488,8 @@ void recoestudy::RecoEnergyS::analyze(art::Event const &evt) {
                               PFVtxGlobalWire, PFVtxGlobalTick);
   //-----------------------------------------------------------------------------------------
   // loop over for reconstructed track
-
+  
+  //Original method using trackHandle2 to get tracks:
   if (trackHandle2.isValid()) {
 
     for (int itrack = 0; itrack < n_tracks_pand; itrack++) {
@@ -1944,12 +1977,14 @@ void recoestudy::RecoEnergyS::analyze(art::Event const &evt) {
   trkide.clear();
   nhits = 0;
   // loop hit level first
+  std::map<art::Ptr<recob::Hit>, int> eventHitIndex;
   for (unsigned int hitIt = 0; hitIt < hits.size(); ++hitIt) {
     if (hitIt >= kMaxHits)
       break;
     nhits += 1;
     // Get the hit
     art::Ptr<recob::Hit> hit = hits.at(hitIt);
+    eventHitIndex.emplace(hit, static_cast<int>(hitIt));
 
     double correctedHitCharge = (hit->Integral() * TMath::Exp((SampleRate * hit->PeakTime()) /
                                                               (detprop->ElectronLifetime() * 1e3)));
@@ -2127,6 +2162,154 @@ void recoestudy::RecoEnergyS::analyze(art::Event const &evt) {
 
   } // end of hitIt
   std::cout << "End of Hit Loop " << std::endl;
+ 
+    
+  //###############New method using PFParticle to get clusters, showers, tracks:##################
+  if(fSaveClustersShowersTracksAssnPFParticle){
+    for(std::size_t iPFP = 0; iPFP < pfParticleHandle->size(); ++iPFP){
+      const auto& pfp = pfParticleHandle->at(iPFP);
+      const art::Ptr<recob::PFParticle> pfpPtr(pfParticleHandle, iPFP);
+      const int pdgcode = pfp.PdgCode();
+      const bool isShower = lar_pandora::LArPandoraHelper::IsShower(pfpPtr);
+      const bool isTrack = lar_pandora::LArPandoraHelper::IsTrack(pfpPtr);
+      std::vector<art::Ptr<recob::Cluster>> pfClusters;
+      std::vector<art::Ptr<recob::Shower>> pfShowers;
+      std::vector<art::Ptr<recob::Track>> pfTracks;
+
+      if (fmPFParticleToCluster.isValid()) {
+          for (const auto& cluster : fmPFParticleToCluster.at(iPFP)) {
+              if (cluster.isNonnull() && cluster.isAvailable()) {
+                  pfClusters.push_back(cluster);
+              }
+          }
+      }
+      else {
+          std::cout << "Cluster association unavailable for PFP index=" << iPFP << std::endl;
+      }
+      if (fmPFParticleToShower.isValid()) {
+          for (const auto& shower : fmPFParticleToShower.at(iPFP)) {
+              if (shower.isNonnull() && shower.isAvailable()) {
+                  pfShowers.push_back(shower);
+              }
+          }
+      }
+      else {
+          std::cout << "Shower association unavailable for PFP index=" << iPFP << std::endl;
+      }
+      if (fmPFParticleToTrack.isValid()) {
+          for (const auto& track : fmPFParticleToTrack.at(iPFP)) {
+              if (track.isNonnull() && track.isAvailable()) {
+                  // std::cout<<"+++++fmPFParticleToTrack: find a track"<<std::endl;
+                  pfTracks.push_back(track);
+              }
+          }
+      }
+      else {
+          std::cout << "Track association unavailable for PFP index=" << iPFP << std::endl;
+      }
+      if(pfClusters.empty()&&pfShowers.empty()&&pfTracks.empty()) {
+          std::cout << "PFParticle " << iPFP << " has no associated clusters, showers, or tracks. Skipping." << std::endl;
+          continue;
+      }
+      // std::cout<<"##########PFParticle " << iPFP << ": clusters=" << pfClusters.size()
+      //          << ", showers=" << pfShowers.size()
+      //          << ", tracks=" << pfTracks.size() << std::endl;    
+      
+      //fill cluster hits:
+      art::FindManyP<recob::Hit> clusterHits(pfClusters, evt, fPFParticleModuleLabel);
+      std::vector<art::Ptr<recob::Hit>> pfp_cluster_Hits;
+      std::set<art::Ptr<recob::Hit>> unique_cluster_Hits;
+      if (clusterHits.isValid()) {
+          for (std::size_t iCluster = 0; iCluster < pfClusters.size(); ++iCluster) {
+              for (const art::Ptr<recob::Hit>& hit : clusterHits.at(iCluster)) {
+                  if (!hit.isNonnull() || !hit.isAvailable()) continue;
+                  if (unique_cluster_Hits.insert(hit).second) {
+                      pfp_cluster_Hits.push_back(hit);
+                  }
+              }
+          }
+      }
+      else if (!pfClusters.empty()) {
+          std::cout << "Cluster-to-hit association unavailable for PFP index="
+                      << iPFP << std::endl;
+      }
+
+      //fill shower hits:
+      art::FindManyP<recob::Hit> showerHits(pfShowers, evt, fShowerModuleLabel);
+      std::vector<art::Ptr<recob::Hit>> pfp_shower_Hits;
+      std::set<art::Ptr<recob::Hit>> unique_shower_Hits;
+      if (showerHits.isValid()) {
+          for (std::size_t iShower = 0; iShower < pfShowers.size(); ++iShower) {
+              for (const art::Ptr<recob::Hit>& hit : showerHits.at(iShower)) {
+                  if (!hit.isNonnull() || !hit.isAvailable()) continue;
+                  if (unique_shower_Hits.insert(hit).second) {
+                      pfp_shower_Hits.push_back(hit);
+                  }
+              }
+          }
+      }
+      else if (!pfShowers.empty()) {
+          std::cout << "Shower-to-hit association unavailable for PFP index="
+                      << iPFP << std::endl;
+      }
+
+      //fill track hits:
+      art::FindManyP<recob::Hit> trackHits(pfTracks, evt, fTrackModuleLabel2);//pandora track
+      std::vector<art::Ptr<recob::Hit>> pfp_track_Hits;
+      std::set<art::Ptr<recob::Hit>> unique_track_Hits;
+      if (trackHits.isValid()) {
+          pfp_track_pdgcode.push_back(pdgcode);
+          pfp_track_is_track.push_back(static_cast<int>(isTrack));
+          int nSaveHits = 0;
+          int nUnmatchedHits = 0;
+          for (std::size_t iTrack = 0; iTrack < pfTracks.size(); ++iTrack) {
+              for (const art::Ptr<recob::Hit>& hit : trackHits.at(iTrack)) {
+                  if (!hit.isNonnull() || !hit.isAvailable()) continue;
+                  if (unique_track_Hits.insert(hit).second) {
+                      const auto& hitIndex = eventHitIndex.find(hit);
+                      if (hitIndex != eventHitIndex.end()) {
+                        int hitIdx = hitIndex->second;
+                        pfp_track_hit_indices.push_back(hitIdx);
+                      }else{
+                        ++nUnmatchedHits;
+                        continue;
+                      }
+                      pfp_track_Hits.push_back(hit);
+                      nSaveHits++;
+                  }
+              }
+          }
+          pfp_track_nhits.push_back(nSaveHits);
+          if (nUnmatchedHits > 0) {
+            std::cout << "Track " << iPFP
+                      << ": unmatched hits = " << nUnmatchedHits
+                      << std::endl;
+          }
+      }
+      else if (!pfTracks.empty()) {
+          std::cout << "Track-to-hit association unavailable for PFP index="
+                      << iPFP << std::endl;
+      }
+      if (pfp_cluster_Hits.empty() && pfp_shower_Hits.empty() && pfp_track_Hits.empty()) {
+          std::cout << "PFParticle " << iPFP << " has no associated hits from clusters, showers, or tracks. Skipping." << std::endl;
+          continue;
+      }
+
+      std::cout << "PFParticle " << iPFP  
+          << ", clusters=" << pfClusters.size()
+          << ", hits=" << pfp_cluster_Hits.size()
+          << std::endl
+          << ", showers=" << pfShowers.size()
+          << ", hits=" << pfp_shower_Hits.size()
+          << std::endl
+          << ", tracks=" << pfTracks.size()
+          << ", hits=" << pfp_track_Hits.size()
+          << std::endl;
+    }
+  }
+  //###############New method using PFParticle to get clusters, showers, tracks:##################
+
+
   //Shift Global Wire Idx
   if (fGlobalWireMethod == 1) {
     ShiftGlobalWireIdx(hit_global_wire, hit_global_tick, hit_tpc, hit_plane, hit_offset);
@@ -3127,6 +3310,12 @@ void recoestudy::RecoEnergyS::reset() {
   v3_on_planes[0]->SetXYZ(0, 0, 0);
   v3_on_planes[1]->SetXYZ(0, 0, 0);
   v3_on_planes[2]->SetXYZ(0, 0, 0);
+
+  // pfp_track_index.clear();
+  pfp_track_pdgcode.clear();
+  pfp_track_is_track.clear();
+  pfp_track_nhits.clear();
+  pfp_track_hit_indices.clear();
 }
 
 DEFINE_ART_MODULE(recoestudy::RecoEnergyS)
