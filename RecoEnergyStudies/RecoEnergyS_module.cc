@@ -1680,7 +1680,7 @@ void recoestudy::RecoEnergyS::analyze(art::Event const &evt) {
         continue;
       art::Ptr<recob::Shower> emshower = showers.at(ishower);
 
-      all_shw_idx[ishower] = emshower->ID();
+      all_shw_idx[ishower] = static_cast<int>(emshower.key());
       all_shw_eng[ishower] = emshower->Energy()[2];
       all_shw_dedx[ishower] = emshower->dEdx()[2];
       all_shw_length[ishower] = emshower->Length();
@@ -1783,7 +1783,7 @@ void recoestudy::RecoEnergyS::analyze(art::Event const &evt) {
             float dang_true = (float)(vv1.Angle(v3_true));
             if (abs(pdg) == 11) {
               electron_candidate = ishower;
-              e_candidate_id = emshower->ID();
+              e_candidate_id = static_cast<int>(emshower.key());
             }
             all_shw_true_Efrac[ishower] = shwtrue[0].second;
             all_shw_true_eng[ishower] = shwtrue[0].first->Momentum().E();
@@ -1903,7 +1903,7 @@ void recoestudy::RecoEnergyS::analyze(art::Event const &evt) {
         if (shw_eng_zplane > max_shw_energy) {
           max_shw_energy = shw_eng_zplane;
           led_shw_idx = ishower;
-          led_shw_id = emshower->ID();
+          led_shw_id = static_cast<int>(emshower.key());
           double tmp_shw_eng = ((fCaloAlg.ElectronsFromADCArea(max_shw_energy, 2) * (1.0 / 0.63) *
                                  util::kGeVToElectrons) -
                                 fIntShwEnergy) /
@@ -2157,27 +2157,27 @@ void recoestudy::RecoEnergyS::analyze(art::Event const &evt) {
     hit_prong_pdg_mom[hitIt] = mom_pdg;
     if (showerHandle.isValid()) {
       if (fmshwhit.isValid() && fmshwhit.at(hitIt).size() != 0) {
-        hit_prong_tag[hitIt] = fmshwhit.at(hitIt)[0]->ID();
-        if (fmshwhit.at(hitIt)[0]->ID() < kMaxClst) {
-          if (hit_peakT[hitIt] > max_shwtick[fmshwhit.at(hitIt)[0]->ID()])
-            max_shwtick[fmshwhit.at(hitIt)[0]->ID()] = hit_peakT[hitIt];
-          if (hit_peakT[hitIt] < min_shwtick[fmshwhit.at(hitIt)[0]->ID()])
-            min_shwtick[fmshwhit.at(hitIt)[0]->ID()] = hit_peakT[hitIt];
-          if (hit_rmsT[hitIt] > max_shwrms[fmshwhit.at(hitIt)[0]->ID()])
-            max_shwrms[fmshwhit.at(hitIt)[0]->ID()] = hit_rmsT[hitIt];
+        hit_prong_tag[hitIt] = static_cast<int>(fmshwhit.at(hitIt)[0].key());
+        if (static_cast<int>(fmshwhit.at(hitIt)[0].key()) < kMaxClst) {
+          if (hit_peakT[hitIt] > max_shwtick[static_cast<int>(fmshwhit.at(hitIt)[0].key())])
+            max_shwtick[static_cast<int>(fmshwhit.at(hitIt)[0].key())] = hit_peakT[hitIt];
+          if (hit_peakT[hitIt] < min_shwtick[static_cast<int>(fmshwhit.at(hitIt)[0].key())])
+            min_shwtick[static_cast<int>(fmshwhit.at(hitIt)[0].key())] = hit_peakT[hitIt];
+          if (hit_rmsT[hitIt] > max_shwrms[static_cast<int>(fmshwhit.at(hitIt)[0].key())])
+            max_shwrms[static_cast<int>(fmshwhit.at(hitIt)[0].key())] = hit_rmsT[hitIt];
         }
       }
     }
     if (trackHandle2.isValid()) {
       if (fmtrkhit.isValid() && fmtrkhit.at(hitIt).size() != 0) {
-        hit_prong_tag[hitIt] = kMaxClst + fmtrkhit.at(hitIt)[0]->ID();
-        if (fmtrkhit.at(hitIt)[0]->ID() < kMaxClst) {
-          if (hit_peakT[hitIt] > max_trktick[fmtrkhit.at(hitIt)[0]->ID()])
-            max_trktick[fmtrkhit.at(hitIt)[0]->ID()] = hit_peakT[hitIt];
-          if (hit_peakT[hitIt] < min_trktick[fmtrkhit.at(hitIt)[0]->ID()])
-            min_trktick[fmtrkhit.at(hitIt)[0]->ID()] = hit_peakT[hitIt];
-          if (hit_rmsT[hitIt] > max_trkrms[fmtrkhit.at(hitIt)[0]->ID()])
-            max_trkrms[fmtrkhit.at(hitIt)[0]->ID()] = hit_rmsT[hitIt];
+        hit_prong_tag[hitIt] = kMaxClst + static_cast<int>(fmtrkhit.at(hitIt)[0].key());
+        if (static_cast<int>(fmtrkhit.at(hitIt)[0].key()) < kMaxClst) {
+          if (hit_peakT[hitIt] > max_trktick[static_cast<int>(fmtrkhit.at(hitIt)[0].key())])
+            max_trktick[static_cast<int>(fmtrkhit.at(hitIt)[0].key())] = hit_peakT[hitIt];
+          if (hit_peakT[hitIt] < min_trktick[static_cast<int>(fmtrkhit.at(hitIt)[0].key())])
+            min_trktick[static_cast<int>(fmtrkhit.at(hitIt)[0].key())] = hit_peakT[hitIt];
+          if (hit_rmsT[hitIt] > max_trkrms[static_cast<int>(fmtrkhit.at(hitIt)[0].key())])
+            max_trkrms[static_cast<int>(fmtrkhit.at(hitIt)[0].key())] = hit_rmsT[hitIt];
         }
       }
     }
