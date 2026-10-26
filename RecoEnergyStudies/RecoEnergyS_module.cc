@@ -458,6 +458,19 @@ private:
   std::vector<int> pfp_track_nhits;
   std::vector<int> pfp_track_hit_indices;//index of the hit_*[kMaxHits]
 
+  // As for tracks, each row combines the associated objects of one PFParticle.
+  // nhits counts matched event hits; hit_indices concatenates the rows.
+  std::vector<int> pfp_shower_pdgcode;
+  std::vector<int> pfp_shower_is_shower;
+  std::vector<int> pfp_shower_nhits;
+  std::vector<int> pfp_shower_hit_indices;
+
+  std::vector<int> pfp_cluster_pdgcode;
+  std::vector<int> pfp_cluster_is_track; // Classification of the parent PFParticle.
+  std::vector<int> pfp_cluster_is_shower;
+  std::vector<int> pfp_cluster_nhits;
+  std::vector<int> pfp_cluster_hit_indices;
+
   // make new wire index for the pixel map
 
   int n_wires;
@@ -996,6 +1009,15 @@ recoestudy::RecoEnergyS::RecoEnergyS(fhicl::ParameterSet const &pset)
     fTree->Branch("pfp_track_is_track", &pfp_track_is_track);
     fTree->Branch("pfp_track_nhits", &pfp_track_nhits);
     fTree->Branch("pfp_track_hit_indices", &pfp_track_hit_indices);
+    fTree->Branch("pfp_shower_pdgcode", &pfp_shower_pdgcode);
+    fTree->Branch("pfp_shower_is_shower", &pfp_shower_is_shower);
+    fTree->Branch("pfp_shower_nhits", &pfp_shower_nhits);
+    fTree->Branch("pfp_shower_hit_indices", &pfp_shower_hit_indices);
+    fTree->Branch("pfp_cluster_pdgcode", &pfp_cluster_pdgcode);
+    fTree->Branch("pfp_cluster_is_track", &pfp_cluster_is_track);
+    fTree->Branch("pfp_cluster_is_shower", &pfp_cluster_is_shower);
+    fTree->Branch("pfp_cluster_nhits", &pfp_cluster_nhits);
+    fTree->Branch("pfp_cluster_hit_indices", &pfp_cluster_hit_indices);
   }
 }
 
@@ -2220,13 +2242,33 @@ void recoestudy::RecoEnergyS::analyze(art::Event const &evt) {
       std::vector<art::Ptr<recob::Hit>> pfp_cluster_Hits;
       std::set<art::Ptr<recob::Hit>> unique_cluster_Hits;
       if (clusterHits.isValid()) {
+          pfp_cluster_pdgcode.push_back(pdgcode);
+          pfp_cluster_is_track.push_back(static_cast<int>(isTrack));
+          pfp_cluster_is_shower.push_back(static_cast<int>(isShower));
+          int nSaveHits = 0;
+          int nUnmatchedHits = 0;
           for (std::size_t iCluster = 0; iCluster < pfClusters.size(); ++iCluster) {
               for (const art::Ptr<recob::Hit>& hit : clusterHits.at(iCluster)) {
                   if (!hit.isNonnull() || !hit.isAvailable()) continue;
                   if (unique_cluster_Hits.insert(hit).second) {
+                      const auto& hitIndex = eventHitIndex.find(hit);
+                      if (hitIndex != eventHitIndex.end()) {
+                        int hitIdx = hitIndex->second;
+                        pfp_cluster_hit_indices.push_back(hitIdx);
+                      }else{
+                        ++nUnmatchedHits;
+                        continue;
+                      }
                       pfp_cluster_Hits.push_back(hit);
+                      nSaveHits++;
                   }
               }
+          }
+          pfp_cluster_nhits.push_back(nSaveHits);
+          if (nUnmatchedHits > 0) {
+            std::cout << "Cluster " << iPFP
+                      << ": unmatched hits = " << nUnmatchedHits
+                      << std::endl;
           }
       }
       else if (!pfClusters.empty()) {
@@ -2239,13 +2281,32 @@ void recoestudy::RecoEnergyS::analyze(art::Event const &evt) {
       std::vector<art::Ptr<recob::Hit>> pfp_shower_Hits;
       std::set<art::Ptr<recob::Hit>> unique_shower_Hits;
       if (showerHits.isValid()) {
+          pfp_shower_pdgcode.push_back(pdgcode);
+          pfp_shower_is_shower.push_back(static_cast<int>(isShower));
+          int nSaveHits = 0;
+          int nUnmatchedHits = 0;
           for (std::size_t iShower = 0; iShower < pfShowers.size(); ++iShower) {
               for (const art::Ptr<recob::Hit>& hit : showerHits.at(iShower)) {
                   if (!hit.isNonnull() || !hit.isAvailable()) continue;
                   if (unique_shower_Hits.insert(hit).second) {
+                      const auto& hitIndex = eventHitIndex.find(hit);
+                      if (hitIndex != eventHitIndex.end()) {
+                        int hitIdx = hitIndex->second;
+                        pfp_shower_hit_indices.push_back(hitIdx);
+                      }else{
+                        ++nUnmatchedHits;
+                        continue;
+                      }
                       pfp_shower_Hits.push_back(hit);
+                      nSaveHits++;
                   }
               }
+          }
+          pfp_shower_nhits.push_back(nSaveHits);
+          if (nUnmatchedHits > 0) {
+            std::cout << "Shower " << iPFP
+                      << ": unmatched hits = " << nUnmatchedHits
+                      << std::endl;
           }
       }
       else if (!pfShowers.empty()) {
@@ -3316,6 +3377,15 @@ void recoestudy::RecoEnergyS::reset() {
   pfp_track_is_track.clear();
   pfp_track_nhits.clear();
   pfp_track_hit_indices.clear();
+  pfp_shower_pdgcode.clear();
+  pfp_shower_is_shower.clear();
+  pfp_shower_nhits.clear();
+  pfp_shower_hit_indices.clear();
+  pfp_cluster_pdgcode.clear();
+  pfp_cluster_is_track.clear();
+  pfp_cluster_is_shower.clear();
+  pfp_cluster_nhits.clear();
+  pfp_cluster_hit_indices.clear();
 }
 
 DEFINE_ART_MODULE(recoestudy::RecoEnergyS)
