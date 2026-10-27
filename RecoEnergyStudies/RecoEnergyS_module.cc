@@ -1206,7 +1206,7 @@ void recoestudy::RecoEnergyS::analyze(art::Event const &evt) {
   art::FindManyP<recob::Cluster> fmc(hitHandle, evt, fClusterModuleLabel);
 
   //**************Orginal method to get clusters, showers, and tracks: ****************
-  // Get the emshower out of the event record
+  // Get the shower out of the event record
   art::Handle<std::vector<recob::Shower>> showerHandle;
   std::vector<art::Ptr<recob::Shower>> showers;
   if (evt.getByLabel(fShowerModuleLabel, showerHandle))
@@ -1675,27 +1675,60 @@ void recoestudy::RecoEnergyS::analyze(art::Event const &evt) {
   int electron_candidate = -1;
   int e_candidate_id = -1;
   std::cout << electron_candidate << std::endl;
+  const std::size_t nOriginalShowers = showers.size();
+  std::vector<int> showerFlag(nOriginalShowers, 0);
+  std::vector<int> showerSavedIndex(nOriginalShowers, -1);
+
   if (showerHandle.isValid()) {
-    n_showers = showers.size();
+    //first determine which showers are showers:
+    for(std::size_t originalIndex = 0; originalIndex < nOriginalShowers; ++originalIndex){
+      const auto& shower = showers.at(originalIndex);
+      if(!shower.isNonnull() || !shower.isAvailable()) continue;
+      bool keepShower = !fFixShowerTrackOverlapForOriginalMethod;
+
+      if(fFixShowerTrackOverlapForOriginalMethod && fmShowerToPFP.isValid()){
+        for (const auto& pfp : fmShowerToPFP.at(shower.key())) {
+          if (!pfp.isNonnull() || !pfp.isAvailable())
+            continue;
+
+          if (lar_pandora::LArPandoraHelper::IsShower(pfp)) {
+            keepShower = true;
+            break;
+          }
+        }
+      }
+
+      if(!keepShower || n_showers >= kMax) continue;
+
+      showerFlag[originalIndex] = 1;
+      showerSavedIndex[originalIndex] = n_showers;
+      ++n_showers;
+    }
+
+
     TVector3 v3_lep(lepp0_truth[0], lepp1_truth[0], lepp2_truth[0]);
 
-    for (int ishower = 0; ishower < n_showers; ++ishower) {
+    for (std::size_t originalIndex = 0; originalIndex < nOriginalShowers; ++originalIndex) {
+
+      if(showerFlag[originalIndex] == 0) continue;
+      const int ishower = showerSavedIndex[originalIndex];
+
       if (ishower >= kMax)
         continue;
-      art::Ptr<recob::Shower> emshower = showers.at(ishower);
+      art::Ptr<recob::Shower> shower = showers.at(originalIndex);
 
-      all_shw_idx[ishower] = static_cast<int>(emshower.key());
-      all_shw_eng[ishower] = emshower->Energy()[2];
-      all_shw_dedx[ishower] = emshower->dEdx()[2];
-      all_shw_length[ishower] = emshower->Length();
-      all_shw_startx[ishower] = emshower->ShowerStart().X();
-      all_shw_starty[ishower] = emshower->ShowerStart().Y();
-      all_shw_startz[ishower] = emshower->ShowerStart().Z();
-      all_shw_px[ishower] = emshower->Direction().X();
-      all_shw_py[ishower] = emshower->Direction().Y();
-      all_shw_pz[ishower] = emshower->Direction().Z();
+      all_shw_idx[ishower] = static_cast<int>(shower.key());
+      all_shw_eng[ishower] = shower->Energy()[2];
+      all_shw_dedx[ishower] = shower->dEdx()[2];
+      all_shw_length[ishower] = shower->Length();
+      all_shw_startx[ishower] = shower->ShowerStart().X();
+      all_shw_starty[ishower] = shower->ShowerStart().Y();
+      all_shw_startz[ishower] = shower->ShowerStart().Z();
+      all_shw_px[ishower] = shower->Direction().X();
+      all_shw_py[ishower] = shower->Direction().Y();
+      all_shw_pz[ishower] = shower->Direction().Z();
 
-      TVector3 vv1(emshower->Direction().X(), emshower->Direction().Y(), emshower->Direction().Z());
+      TVector3 vv1(shower->Direction().X(), shower->Direction().Y(), shower->Direction().Z());
       all_shw_costh[ishower] = cos(vv1.Theta());
       all_shw_phi[ishower] = vv1.Phi();
 
@@ -1709,7 +1742,7 @@ void recoestudy::RecoEnergyS::analyze(art::Event const &evt) {
       dist_true = sqrt(dist_true);
 
       if (fmsh.isValid()) {
-        std::vector<art::Ptr<recob::Hit>> vhit = fmsh.at(ishower);
+        std::vector<art::Ptr<recob::Hit>> vhit = fmsh.at(originalIndex);
         std::unordered_map<const simb::MCParticle *, double> mcEMap;
 
         std::cout << " N Hits in Shower: " << vhit.size() << std::endl;
@@ -1787,7 +1820,7 @@ void recoestudy::RecoEnergyS::analyze(art::Event const &evt) {
             float dang_true = (float)(vv1.Angle(v3_true));
             if (abs(pdg) == 11) {
               electron_candidate = ishower;
-              e_candidate_id = static_cast<int>(emshower.key());
+              e_candidate_id = static_cast<int>(shower.key());
             }
             all_shw_true_Efrac[ishower] = shwtrue[0].second;
             all_shw_true_eng[ishower] = shwtrue[0].first->Momentum().E();
@@ -1882,12 +1915,12 @@ void recoestudy::RecoEnergyS::analyze(art::Event const &evt) {
             hit_shw_trueE[hit_shw_count] = -1;
             // fill shower level
             shw_idx[hit_shw_count] = ishower;
-            shw_dirX[hit_shw_count] = emshower->Direction().X();
-            shw_dirY[hit_shw_count] = emshower->Direction().Y();
-            shw_dirZ[hit_shw_count] = emshower->Direction().Z();
-            shw_startX[hit_shw_count] = emshower->ShowerStart().X();
-            shw_startY[hit_shw_count] = emshower->ShowerStart().Y();
-            shw_startZ[hit_shw_count] = emshower->ShowerStart().Z();
+            shw_dirX[hit_shw_count] = shower->Direction().X();
+            shw_dirY[hit_shw_count] = shower->Direction().Y();
+            shw_dirZ[hit_shw_count] = shower->Direction().Z();
+            shw_startX[hit_shw_count] = shower->ShowerStart().X();
+            shw_startY[hit_shw_count] = shower->ShowerStart().Y();
+            shw_startZ[hit_shw_count] = shower->ShowerStart().Z();
 
             unsigned int globalWire = vhit[h]->WireID().Wire;
             unsigned int globalPlane = vhit[h]->WireID().Plane;
@@ -1903,11 +1936,11 @@ void recoestudy::RecoEnergyS::analyze(art::Event const &evt) {
           } // end of kMaxHits
         } // end of shower hit loop
 
-        double shw_eng_zplane = emshower->Energy()[2];
+        double shw_eng_zplane = shower->Energy()[2];
         if (shw_eng_zplane > max_shw_energy) {
           max_shw_energy = shw_eng_zplane;
           led_shw_idx = ishower;
-          led_shw_id = static_cast<int>(emshower.key());
+          led_shw_id = static_cast<int>(shower.key());
           double tmp_shw_eng = ((fCaloAlg.ElectronsFromADCArea(max_shw_energy, 2) * (1.0 / 0.63) *
                                  util::kGeVToElectrons) -
                                 fIntShwEnergy) /
@@ -1915,12 +1948,12 @@ void recoestudy::RecoEnergyS::analyze(art::Event const &evt) {
           tmp_shw_eng = std::sqrt(tmp_shw_eng * tmp_shw_eng + 0.0005109989461 * 0.0005109989461);
 
           led_shw_eng = max_shw_energy; // fixme
-          led_shw_dirx = emshower->Direction().X();
-          led_shw_diry = emshower->Direction().Y();
-          led_shw_dirz = emshower->Direction().Z();
-          led_shw_startx = emshower->ShowerStart().X();
-          led_shw_starty = emshower->ShowerStart().Y();
-          led_shw_startz = emshower->ShowerStart().Z();
+          led_shw_dirx = shower->Direction().X();
+          led_shw_diry = shower->Direction().Y();
+          led_shw_dirz = shower->Direction().Z();
+          led_shw_startx = shower->ShowerStart().X();
+          led_shw_starty = shower->ShowerStart().Y();
+          led_shw_startz = shower->ShowerStart().Z();
           led_shw_costh = cos(vv1.Theta());
 
           // get unique primary particles
@@ -1944,7 +1977,7 @@ void recoestudy::RecoEnergyS::analyze(art::Event const &evt) {
             led_shw_truecosth = cos(shwtrue[0].first->Momentum().Vect().Theta());
           }
 
-        } // collect leading emshower
+        } // collect leading shower
 
       } // end of fmsh
       if (showerCharge > 0)
@@ -1968,7 +2001,7 @@ void recoestudy::RecoEnergyS::analyze(art::Event const &evt) {
       ((shw_ChargeV * (1.0 / 0.63) * (23.6e-9 / 4.966e-3)) - fIntShwEnergy) / fGradShwEnergy;
   shw_EnergyZ =
       ((shw_ChargeZ * (1.0 / 0.63) * (23.6e-9 / 4.966e-3)) - fIntShwEnergy) / fGradShwEnergy;
-  // end of emshower
+  // end of shower
   //-----------------------------------------------------------------------------------------
 
   // Lifetime-corrected charge
@@ -2161,38 +2194,25 @@ void recoestudy::RecoEnergyS::analyze(art::Event const &evt) {
     hit_prong_pdg_mom[hitIt] = mom_pdg;
     if (showerHandle.isValid()) {
       if (fmshwhit.isValid() && fmshwhit.at(hitIt).size() != 0) {
-        art::Ptr<recob::Shower> shower;
-        if(fFixShowerTrackOverlapForOriginalMethod){
-          if(fmShowerToPFP.isValid()){
-              for(const auto& shower_itr : fmshwhit.at(hitIt)){
-                if(!shower_itr.isNonnull() || !shower_itr.isAvailable()) continue;
-                bool isShower = false;
-                for(const auto& pfp : fmShowerToPFP.at(shower_itr.key())){
-                  if (!pfp.isNonnull() || !pfp.isAvailable()) continue;
-                    if (lar_pandora::LArPandoraHelper::IsShower(pfp)) {
-                        isShower = true;
-                        break;
-                    }
-                }
-                if(isShower){
-                  shower = shower_itr;
-                  break;
-                }
-              }
+        for(const auto& shower : fmshwhit.at(hitIt)){
+          if (!shower.isNonnull() || !shower.isAvailable()) continue;
+          const std::size_t originalIndex = shower.key();
+          if (originalIndex >= showerFlag.size()) continue;
+          if (showerFlag[originalIndex] == 0) continue;
+          const int showerIndex = showerSavedIndex[originalIndex];
+
+          hit_prong_tag[hitIt] = showerIndex;
+          if (showerIndex < kMaxClst) {
+            if (hit_peakT[hitIt] > max_shwtick[showerIndex])
+              max_shwtick[showerIndex] = hit_peakT[hitIt];
+
+            if (hit_peakT[hitIt] < min_shwtick[showerIndex])
+              min_shwtick[showerIndex] = hit_peakT[hitIt];
+
+            if (hit_rmsT[hitIt] > max_shwrms[showerIndex])
+              max_shwrms[showerIndex] = hit_rmsT[hitIt];
           }
-        }else{
-            shower = fmshwhit.at(hitIt)[0];
-        }
-        if(shower.isNonnull() && shower.isAvailable()){
-            hit_prong_tag[hitIt] = static_cast<int>(shower.key());
-            if (static_cast<int>(shower.key()) < kMaxClst) {
-              if (hit_peakT[hitIt] > max_shwtick[static_cast<int>(shower.key())])
-                max_shwtick[static_cast<int>(shower.key())] = hit_peakT[hitIt];
-              if (hit_peakT[hitIt] < min_shwtick[static_cast<int>(shower.key())])
-                min_shwtick[static_cast<int>(shower.key())] = hit_peakT[hitIt];
-              if (hit_rmsT[hitIt] > max_shwrms[static_cast<int>(shower.key())])
-                max_shwrms[static_cast<int>(shower.key())] = hit_rmsT[hitIt];
-            }
+          break;
         }
       }
     }
