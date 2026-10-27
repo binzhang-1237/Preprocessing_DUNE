@@ -134,8 +134,19 @@ void ComparePixelMaps(const std::array<TH2D **, 3> &oldMaps, int nTracks, int nS
     };
     if (oldIndex < 0 || newIndex < 0) {
       describe() << types[type] << " map counts differ: original method has " << oldCounts[type]
-                 << " maps, new method has " << newCounts[type] << " maps; this map has no counterpart."
-                 << std::endl;
+                 << " maps, new method has " << newCounts[type] << " maps; this map has no counterpart. "
+                 << "Existing " << (oldIndex < 0 ? "new-method" : "original-method")
+                 << " map nhits (non-empty bins):";
+      for (int ip = 0; ip < 3; ++ip) {
+        const TH2D *map = oldIndex < 0 ? newMaps[ip][newOffsets[type] + newIndex]
+                                      : oldMaps[ip][oldOffsets[type] + oldIndex];
+        int nhits = 0;
+        for (int ix = 1; ix <= map->GetNbinsX(); ++ix)
+          for (int iy = 1; iy <= map->GetNbinsY(); ++iy)
+            if (map->GetBinContent(ix, iy) != 0.) ++nhits;
+        differences << " " << planes[ip] << "=" << nhits;
+      }
+      differences << std::endl;
       return;
     }
     for (int ip = 0; ip < 3; ++ip) {
@@ -183,6 +194,73 @@ void ComparePixelMaps(const std::array<TH2D **, 3> &oldMaps, int nTracks, int nS
       if (!used[candidate]) compare(type, -1, candidate);
   }
   cout << "Event " << event << ": comparison finished, differences=" << nDifferent << endl;
+}
+
+struct PfpPixelMaps {
+  std::array<std::vector<TH2D *>, 3> maps;
+  std::vector<TString> labels = {"Event map"};
+  int nTracks = 0, nShowers = 0, nClusters = 0;
+};
+
+// Build PFP maps using the coordinates already computed by the original method.
+// The caller owns the returned histograms.
+PfpPixelMaps BuildPfpPixelMaps(
+    const TH2D &mapTemplate,
+    const std::array<const std::vector<int> *, 3> &counts,
+    const std::array<const std::vector<int> *, 3> &indices,
+    const std::array<const std::vector<int> *, 3> &flags,
+    const std::vector<std::array<int, 3>> &hitPixels, const float *hitCharge,
+    int entry) {
+  PfpPixelMaps result;
+  const char *groupNames[3] = {"track", "shower", "cluster"};
+
+  result.nTracks = std::count(flags[0]->begin(), flags[0]->end(), 1);
+  result.nShowers = std::count(flags[1]->begin(), flags[1]->end(), 1);
+  result.nClusters = counts[2]->size();
+  const int nPfpMaps = 1 + result.nTracks + result.nShowers + result.nClusters;
+  // Storage: event, track groups, shower groups, cluster groups.
+  for (int ip = 0; ip < 3; ++ip) {
+    result.maps[ip].resize(nPfpMaps);
+    result.maps[ip][0] = static_cast<TH2D *>(mapTemplate.Clone(
+        Form("h2_evt3_entry_%d_plane_%d_event", entry, ip)));
+    result.maps[ip][0]->SetDirectory(nullptr);
+  }
+
+  for (std::size_t hit = 0; hit < hitPixels.size(); ++hit) {
+    const auto &pixel = hitPixels[hit];
+    result.maps[pixel[0]][0]->Fill(pixel[1], pixel[2], hitCharge[hit]);
+  }
+
+  // Titles retain the original stored row number after filtering.
+  const char *mapTypes[3] = {"Track", "Shower", "Cluster"};
+  int mapIndex = 1;
+  for (int group = 0; group < 3; ++group) {
+    std::size_t offset = 0;
+    for (std::size_t row = 0; row < counts[group]->size(); ++row) {
+      const int nGroupHits = counts[group]->at(row);
+      const std::size_t rowOffset = offset;
+      offset += nGroupHits; // Also advance past discarded track/shower rows.
+      if (group < 2 && flags[group]->at(row) != 1)
+        continue;
+      // Cluster groups are kept as stored, without classification filtering.
+      result.labels.push_back(Form("%s %zu map", mapTypes[group], row));
+      for (int ip = 0; ip < 3; ++ip) {
+        result.maps[ip][mapIndex] = static_cast<TH2D *>(mapTemplate.Clone(
+            Form("h2_evt3_entry_%d_plane_%d_%s_%zu", entry, ip, groupNames[group], row)));
+        result.maps[ip][mapIndex]->SetDirectory(nullptr);
+      }
+      // Upstream deduplicates within each group; shared hits remain in other groups.
+      for (int h = 0; h < nGroupHits; ++h) {
+        const int hitIndex = indices[group]->at(rowOffset + h);
+        if (hitIndex < 0 || static_cast<std::size_t>(hitIndex) >= hitPixels.size())
+          continue;
+        const auto &pixel = hitPixels[hitIndex];
+        result.maps[pixel[0]][mapIndex]->Fill(pixel[1], pixel[2], hitCharge[hitIndex]);
+      }
+      ++mapIndex;
+    }
+  }
+  return result;
 }
 
 void make_text_file_to_root_trks_shws(TString input, TString output, string type = "nue") {
@@ -913,6 +991,8 @@ void make_text_file_to_root_trks_shws(TString input, TString output, string type
       h2_evt1[iplane][0]->Fill(rel_wire_coarse, rel_time_coarse, hit_charge[ihit]);
       h2_evt2[iplane][0]->Fill(rel_wire_coarse, rel_time_coarse, hit_corrcharge[ihit]);
 
+      hitPixels[ihit] = {iplane, rel_wire_coarse, rel_time_coarse};
+
       if (prong_tag == -1)
         continue;
 
@@ -927,66 +1007,23 @@ void make_text_file_to_root_trks_shws(TString input, TString output, string type
         h2_evt2[iplane][prong_tag + 1]->Fill(rel_wire_coarse, rel_time_coarse,
                                              hit_corrcharge[ihit]);
       }
-      hitPixels[ihit] = {iplane, rel_wire_coarse, rel_time_coarse};
     }
 
     // New method: build maps from the saved PFParticle hit indices.
-    std::array<std::vector<TH2D *>, 3> h2_evt3;
-    std::vector<TString> pfpMapLabels = {"Event map"};
-    int nPfpTracks = 0, nPfpShowers = 0, nPfpClusters = 0;
+    PfpPixelMaps pfpMaps;
     if (hasPfpHits) {
-      const std::array<std::vector<int> *, 3> counts = {
-          pfp_track_nhits, pfp_shower_nhits, pfp_cluster_nhits};
-      const std::array<std::vector<int> *, 3> indices = {
-          pfp_track_hit_indices, pfp_shower_hit_indices, pfp_cluster_hit_indices};
-      const char *groupNames[3] = {"track", "shower", "cluster"};
-
-      const std::array<std::vector<int> *, 3> flags = {
-          pfp_track_is_track, pfp_shower_is_shower, nullptr};
-      nPfpTracks = std::count(flags[0]->begin(), flags[0]->end(), 1);
-      nPfpShowers = std::count(flags[1]->begin(), flags[1]->end(), 1);
-      nPfpClusters = counts[2]->size();
-      const int nPfpMaps = 1 + nPfpTracks + nPfpShowers + nPfpClusters;
-      // Storage: event, track groups, shower groups, cluster groups.
-      for (int ip = 0; ip < 3; ++ip) {
-        h2_evt3[ip].resize(nPfpMaps);
-        h2_evt3[ip][0] = static_cast<TH2D *>(h2_evt2[ip][0]->Clone(
-            Form("h2_evt3_entry_%d_plane_%d_event", ie, ip)));
-        h2_evt3[ip][0]->SetDirectory(nullptr);
-      }
-
-      // Titles retain the original stored row number after filtering.
-      const char *mapTypes[3] = {"Track", "Shower", "Cluster"};
-      int mapIndex = 1;
-      for (int group = 0; group < 3; ++group) {
-        std::size_t offset = 0;
-        for (std::size_t row = 0; row < counts[group]->size(); ++row) {
-          const int nGroupHits = counts[group]->at(row);
-          const std::size_t rowOffset = offset;
-          offset += nGroupHits; // Also advance past discarded track/shower rows.
-          if (group < 2 && flags[group]->at(row) != 1)
-            continue;
-          // Cluster groups are kept as stored, without classification filtering.
-          pfpMapLabels.push_back(Form("%s %zu map", mapTypes[group], row));
-          for (int ip = 0; ip < 3; ++ip) {
-            h2_evt3[ip][mapIndex] = new TH2D(
-                Form("h2_evt3_entry_%d_plane_%d_%s_%zu", ie, ip, groupNames[group], row),
-                ";Pixel wire;Pixel tick;Corrected charge", xnbins, 0, 2 * xmax,
-                ynbins, 0, 2 * ymax);
-            h2_evt3[ip][mapIndex]->SetDirectory(nullptr);
-          }
-          // Upstream deduplicates within each group; shared hits remain in other groups.
-          for (int h = 0; h < nGroupHits; ++h) {
-            const int hitIndex = indices[group]->at(rowOffset + h);
-            if (hitIndex < 0 || hitIndex >= nhits)
-              continue;
-            const auto &pixel = hitPixels[hitIndex];
-            h2_evt3[pixel[0]][mapIndex]->Fill(pixel[1], pixel[2], hit_corrcharge[hitIndex]);
-          }
-          ++mapIndex;
-        }
-      }
-
+      // Clone and clear the histogram to copy its format only, without any event data.
+      TH2D *mapTemplate = static_cast<TH2D *>(h2_evt2[0][0]->Clone("pfp_map_template"));
+      mapTemplate->SetDirectory(nullptr);
+      mapTemplate->Reset();
+      mapTemplate->SetTitle(";Pixel wire;Pixel tick;Corrected charge");
+      pfpMaps = BuildPfpPixelMaps(
+          *mapTemplate,
+          {pfp_track_nhits, pfp_shower_nhits, pfp_cluster_nhits},
+          {pfp_track_hit_indices, pfp_shower_hit_indices, pfp_cluster_hit_indices},
+          {pfp_track_is_track, pfp_shower_is_shower, nullptr},
+          hitPixels, hit_corrcharge, ie);
+      delete mapTemplate;
     }
 
     // loop to print out text file
@@ -1205,17 +1242,17 @@ void make_text_file_to_root_trks_shws(TString input, TString output, string type
     if (hasPfpHits) {
       const TString pfpPdfPath = Form("%s/pfp/%s_entry_%d_event_%d_pfp.pdf", pdfDirectory.Data(),
                                      pdfPrefix.Data(), ie, ievt);
-      SavePixelMapsPdf({h2_evt3[0].data(), h2_evt3[1].data(), h2_evt3[2].data()}, nPfpTracks,
-                       nPfpShowers, ie, ievt, pfpPdfPath, nPfpClusters, true, pfpMapLabels);
+      SavePixelMapsPdf({pfpMaps.maps[0].data(), pfpMaps.maps[1].data(), pfpMaps.maps[2].data()}, pfpMaps.nTracks,
+                       pfpMaps.nShowers, ie, ievt, pfpPdfPath, pfpMaps.nClusters, true, pfpMaps.labels);
     }
     //compare the pixel maps created by the two methods:
     if (hasPfpHits)
       ComparePixelMaps({h2_evt2[0], h2_evt2[1], h2_evt2[2]}, n_tracks, n_showers,
-                       {h2_evt3[0].data(), h2_evt3[1].data(), h2_evt3[2].data()},
-                       nPfpTracks, nPfpShowers, ie, ievt, comparisonReport);
+                       {pfpMaps.maps[0].data(), pfpMaps.maps[1].data(), pfpMaps.maps[2].data()},
+                       pfpMaps.nTracks, pfpMaps.nShowers, ie, ievt, comparisonReport);
 
     // New-method maps are used only for PDF plotting and comparison.
-    for (const auto &planeMaps : h2_evt3)
+    for (const auto &planeMaps : pfpMaps.maps)
       for (TH2D *map : planeMaps)
         delete map;
 
