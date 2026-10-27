@@ -1,7 +1,12 @@
 // add ievent log output
 // change adc charge cut from 0 to -500
 
+#include <algorithm>
 #include <array>
+#include <stdexcept>
+#include <vector>
+
+#include "TDirectory.h"
 
 #include "TCanvas.h"
 #include "TH2.h"
@@ -12,11 +17,16 @@
 const int kMaxClst = 100;
 const int nParticleClasses = 11;
 
-// Draw one multipage PDF; maps are ordered event, showers, then tracks in each plane.
+// Draw event, track, shower and optional cluster pages.
+// Legacy storage is event/showers/tracks; tracksFirst storage is event/tracks/showers/clusters.
 // Histogram pointers are borrowed; the caller retains ownership.
 void SavePixelMapsPdf(const std::array<TH2D **, 3> &maps, int nTracks, int nShowers,
-                      int entry, int event, const TString &pdfPath) {
-  const int nPages = 1 + nTracks + nShowers;
+                      int entry, int event, const TString &pdfPath, int nClusters = 0,
+                      bool tracksFirst = false,
+                      const std::vector<TString> &mapLabels = {}) {
+  const int nPages = 1 + nTracks + nShowers + nClusters;
+  if (!mapLabels.empty() && mapLabels.size() != static_cast<std::size_t>(nPages))
+    throw std::runtime_error("Pixelmap labels do not match the number of maps");
   const char *planeNames[3] = {"U", "V", "Z"};
   double colorMin[3], colorMax[3];
   for (int ip = 0; ip < 3; ++ip) {
@@ -32,19 +42,27 @@ void SavePixelMapsPdf(const std::array<TH2D **, 3> &maps, int nTracks, int nShow
   pdfControl.Print((pdfPath + "[").Data());
   int emptyTracks = 0;
   int emptyShowers = 0;
+  int emptyClusters = 0;
 
   for (int page = 0; page < nPages; ++page) {
     int mapIndex = 0;
     TString mapType = "Event map";
     if (page > 0 && page <= nTracks) {
       const int trackIndex = page - 1;
-      mapIndex = nShowers + trackIndex + 1;
+      mapIndex = tracksFirst ? trackIndex + 1 : nShowers + trackIndex + 1;
       mapType = Form("Track %d map", trackIndex);
-    } else if (page > nTracks) {
+    } else if (page > nTracks && page <= nTracks + nShowers) {
       const int showerIndex = page - nTracks - 1;
-      mapIndex = showerIndex + 1;
+      mapIndex = tracksFirst ? nTracks + showerIndex + 1 : showerIndex + 1;
       mapType = Form("Shower %d map", showerIndex);
+    } else if (page > nTracks + nShowers) {
+      const int clusterIndex = page - nTracks - nShowers - 1;
+      mapIndex = 1 + nTracks + nShowers + clusterIndex;
+      mapType = Form("Cluster %d map", clusterIndex);
     }
+
+    if (!mapLabels.empty())
+      mapType = mapLabels.at(mapIndex);
 
     int nNonEmptyBins[3] = {0, 0, 0};
     for (int ip = 0; ip < 3; ++ip) {
@@ -60,8 +78,10 @@ void SavePixelMapsPdf(const std::array<TH2D **, 3> &maps, int nTracks, int nShow
         nNonEmptyBins[2] == 0) {
       if (page <= nTracks)
         ++emptyTracks;
-      else
+      else if (page <= nTracks + nShowers)
         ++emptyShowers;
+      else
+        ++emptyClusters;
       cout << "Event " << event << ": skip empty " << mapType << endl;
       continue;
     }
@@ -91,7 +111,8 @@ void SavePixelMapsPdf(const std::array<TH2D **, 3> &maps, int nTracks, int nShow
   }
   pdfControl.Print((pdfPath + "]").Data());
   cout << "Event " << event << ": skipped empty maps: tracks=" << emptyTracks << "/"
-       << nTracks << ", showers=" << emptyShowers << "/" << nShowers << endl;
+       << nTracks << ", showers=" << emptyShowers << "/" << nShowers
+       << ", clusters=" << emptyClusters << "/" << nClusters << endl;
   gStyle->SetPaperSize(oldPaperWidth, oldPaperHeight);
 }
 
@@ -642,6 +663,35 @@ void make_text_file_to_root_trks_shws(TString input, TString output, string type
   ch->SetBranchAddress("cvn2neutrons", &fCVNResult2Neutrons);
   ch->SetBranchAddress("cvnNneutrons", &fCVNResultNNeutrons);
 
+  // Each nhits entry is a PFParticle-associated group, not necessarily one fit object.
+  std::vector<int> *pfp_track_nhits = nullptr, *pfp_track_hit_indices = nullptr;
+  std::vector<int> *pfp_shower_nhits = nullptr, *pfp_shower_hit_indices = nullptr;
+  std::vector<int> *pfp_cluster_nhits = nullptr, *pfp_cluster_hit_indices = nullptr;
+  std::vector<int> *pfp_track_is_track = nullptr, *pfp_shower_is_shower = nullptr;
+  const char *pfpBranches[] = {"pfp_track_nhits", "pfp_track_hit_indices",
+                             "pfp_shower_nhits", "pfp_shower_hit_indices",
+                             "pfp_cluster_nhits", "pfp_cluster_hit_indices",
+                             "pfp_track_is_track", "pfp_shower_is_shower"};
+  bool hasPfpHits = true;
+  ch->LoadTree(0);
+  for (const char *branch : pfpBranches) {
+    if (!ch->GetBranch(branch)) {
+      Warning("make_text_file_to_root_trks_shws", "Missing %s; PFP maps disabled", branch);
+      hasPfpHits = false;
+    }
+  }
+  if (hasPfpHits) {
+    ch->SetBranchAddress("pfp_track_nhits", &pfp_track_nhits);
+    ch->SetBranchAddress("pfp_track_hit_indices", &pfp_track_hit_indices);
+    ch->SetBranchAddress("pfp_shower_nhits", &pfp_shower_nhits);
+    ch->SetBranchAddress("pfp_shower_hit_indices", &pfp_shower_hit_indices);
+    ch->SetBranchAddress("pfp_cluster_nhits", &pfp_cluster_nhits);
+    ch->SetBranchAddress("pfp_cluster_hit_indices", &pfp_cluster_hit_indices);
+    ch->SetBranchAddress("pfp_track_is_track", &pfp_track_is_track);
+    ch->SetBranchAddress("pfp_shower_is_shower", &pfp_shower_is_shower);
+    gSystem->mkdir((pdfDirectory + "/pfp").Data(), true);
+  }
+
   // for nue
   int x_coarse = 1;
   int y_coarse = 6;
@@ -765,6 +815,8 @@ void make_text_file_to_root_trks_shws(TString input, TString output, string type
     // make new array for pixel map
     int min_rel_dist = 100000;
 
+    // Cache plane and pixel coordinates once per event hit for both methods.
+    std::vector<std::array<int, 3>> hitPixels(nhits);
     for (int ihit = 0; ihit < nhits; ihit++) {
       int wire_in = (int)hit_global_wire[ihit];
 
@@ -786,6 +838,7 @@ void make_text_file_to_root_trks_shws(TString input, TString output, string type
       if (prong_tag == -1)
         continue;
 
+
       if (prong_tag >= kMaxClst) { // Tracks
         h2_evt1[iplane][n_showers + prong_tag - kMaxClst + 1]->Fill(
             rel_wire_coarse, rel_time_coarse, hit_charge[ihit]);
@@ -796,6 +849,66 @@ void make_text_file_to_root_trks_shws(TString input, TString output, string type
         h2_evt2[iplane][prong_tag + 1]->Fill(rel_wire_coarse, rel_time_coarse,
                                              hit_corrcharge[ihit]);
       }
+      hitPixels[ihit] = {iplane, rel_wire_coarse, rel_time_coarse};
+    }
+
+    // New method: build maps from the saved PFParticle hit indices.
+    std::array<std::vector<TH2D *>, 3> h2_evt3;
+    std::vector<TString> pfpMapLabels = {"Event map"};
+    int nPfpTracks = 0, nPfpShowers = 0, nPfpClusters = 0;
+    if (hasPfpHits) {
+      const std::array<std::vector<int> *, 3> counts = {
+          pfp_track_nhits, pfp_shower_nhits, pfp_cluster_nhits};
+      const std::array<std::vector<int> *, 3> indices = {
+          pfp_track_hit_indices, pfp_shower_hit_indices, pfp_cluster_hit_indices};
+      const char *groupNames[3] = {"track", "shower", "cluster"};
+
+      const std::array<std::vector<int> *, 3> flags = {
+          pfp_track_is_track, pfp_shower_is_shower, nullptr};
+      nPfpTracks = std::count(flags[0]->begin(), flags[0]->end(), 1);
+      nPfpShowers = std::count(flags[1]->begin(), flags[1]->end(), 1);
+      nPfpClusters = counts[2]->size();
+      const int nPfpMaps = 1 + nPfpTracks + nPfpShowers + nPfpClusters;
+      // Storage: event, track groups, shower groups, cluster groups.
+      for (int ip = 0; ip < 3; ++ip) {
+        h2_evt3[ip].resize(nPfpMaps);
+        h2_evt3[ip][0] = static_cast<TH2D *>(h2_evt2[ip][0]->Clone(
+            Form("h2_evt3_entry_%d_plane_%d_event", ie, ip)));
+        h2_evt3[ip][0]->SetDirectory(nullptr);
+      }
+
+      // Titles retain the original stored row number after filtering.
+      const char *mapTypes[3] = {"Track", "Shower", "Cluster"};
+      int mapIndex = 1;
+      for (int group = 0; group < 3; ++group) {
+        std::size_t offset = 0;
+        for (std::size_t row = 0; row < counts[group]->size(); ++row) {
+          const int nGroupHits = counts[group]->at(row);
+          const std::size_t rowOffset = offset;
+          offset += nGroupHits; // Also advance past discarded track/shower rows.
+          if (group < 2 && flags[group]->at(row) != 1)
+            continue;
+          // Cluster groups are kept as stored, without classification filtering.
+          pfpMapLabels.push_back(Form("%s %zu map", mapTypes[group], row));
+          for (int ip = 0; ip < 3; ++ip) {
+            h2_evt3[ip][mapIndex] = new TH2D(
+                Form("h2_evt3_entry_%d_plane_%d_%s_%zu", ie, ip, groupNames[group], row),
+                ";Pixel wire;Pixel tick;Corrected charge", xnbins, 0, 2 * xmax,
+                ynbins, 0, 2 * ymax);
+            h2_evt3[ip][mapIndex]->SetDirectory(nullptr);
+          }
+          // Upstream deduplicates within each group; shared hits remain in other groups.
+          for (int h = 0; h < nGroupHits; ++h) {
+            const int hitIndex = indices[group]->at(rowOffset + h);
+            if (hitIndex < 0 || hitIndex >= nhits)
+              continue;
+            const auto &pixel = hitPixels[hitIndex];
+            h2_evt3[pixel[0]][mapIndex]->Fill(pixel[1], pixel[2], hit_corrcharge[hitIndex]);
+          }
+          ++mapIndex;
+        }
+      }
+
     }
 
     // loop to print out text file
@@ -1010,6 +1123,29 @@ void make_text_file_to_root_trks_shws(TString input, TString output, string type
                                  pdfPrefix.Data(), ie, ievt);
     SavePixelMapsPdf({h2_evt2[0], h2_evt2[1], h2_evt2[2]}, n_tracks, n_showers,
                      ie, ievt, pdfPath);
+
+    if (hasPfpHits) {
+      const TString pfpPdfPath = Form("%s/pfp/%s_entry_%d_event_%d_pfp.pdf", pdfDirectory.Data(),
+                                     pdfPrefix.Data(), ie, ievt);
+      SavePixelMapsPdf({h2_evt3[0].data(), h2_evt3[1].data(), h2_evt3[2].data()}, nPfpTracks,
+                       nPfpShowers, ie, ievt, pfpPdfPath, nPfpClusters, true, pfpMapLabels);
+    }
+
+    // Save the new-method histograms in ROOT and release them.
+    if (hasPfpHits) {
+      TDirectory *pfpDirectory = outputFile->GetDirectory("pfp_pixelmaps");
+      if (!pfpDirectory)
+        pfpDirectory = outputFile->mkdir("pfp_pixelmaps");
+      TDirectory *eventDirectory = pfpDirectory->mkdir(Form("entry_%d_event_%d", ie, ievt));
+      eventDirectory->cd();
+      for (int ip = 0; ip < 3; ++ip) {
+        for (TH2D *map : h2_evt3[ip]) {
+          map->Write();
+          delete map;
+        }
+      }
+      outputFile->cd();
+    }
 
     for (int ip = 0; ip < 3; ip++) {
       for (int iMap = 0; iMap < 1 + n_showers + n_tracks; iMap++) {
