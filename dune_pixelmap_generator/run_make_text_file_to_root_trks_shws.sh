@@ -6,7 +6,7 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 MACRO="$SCRIPT_DIR/macros/make_text_file_to_root_trks_shws.C"
 INPUT_FILE="${1:-/home/binzhang/disk_binzhang/preprocessing_multi_production/RecoEnergyStudies/output_root/2026_production/test/nue_dune10kt_1x2x6_1063_129_20230823T130817Z_gen_g4_detsim_hitreco_20260713T164258Z_reco2_RecoEnergyStudies.root}"
 OUTPUT_FILE="${2:-/home/binzhang/disk_binzhang/preprocessing_multi_production/dune_pixelmap_generator/output/pixel_maps_test.root}"
-TYPE="${3:-nue}"
+TYPE="${3:-numu}"
 ROOT_LOCAL="${ROOT_LOCAL:-$HOME/root-local-6.28.12}"
 
 [[ -f "$INPUT_FILE" ]] || { echo "Missing input: $INPUT_FILE" >&2; exit 1; }

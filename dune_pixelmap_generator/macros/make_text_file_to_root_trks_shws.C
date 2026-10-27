@@ -1,10 +1,15 @@
 // add ievent log output
 // change adc charge cut from 0 to -500
 
+#include "TCanvas.h"
+#include "TPad.h"
+#include "TStyle.h"
+#include "TSystem.h"
+
 const int kMaxClst = 100;
 const int nParticleClasses = 11;
 
-void make_text_file_to_root_trks_shws(TString input, TString outtext, string type = "nue") {
+void make_text_file_to_root_trks_shws(TString input, TString output, string type = "nue") {
   bool cutNC = false;
   cout << "Start Making Text File" << endl;
   TStopwatch gtimer;
@@ -21,10 +26,22 @@ void make_text_file_to_root_trks_shws(TString input, TString outtext, string typ
   cout << ">>>" << input.Data() << endl;
   ch->SetMakeClass(1);
 
-  TFile *output = new TFile(outtext.Data(), "recreate");
+  TFile *outputFile = new TFile(output.Data(), "recreate");
   TTree *newtree = new TTree("pixelmap", "pixelmap");
-  output->SetCompressionLevel(9);
-  cout << output->GetCompressionAlgorithm() << endl;
+  outputFile->SetCompressionLevel(9);
+  cout << outputFile->GetCompressionAlgorithm() << endl;
+
+  TString pdfPrefix = gSystem->BaseName(output.Data());
+  if (pdfPrefix.EndsWith(".root"))
+    pdfPrefix.Remove(pdfPrefix.Length() - 5);
+  const TString pdfDirectory = TString(gSystem->DirName(output.Data())) + "/pixel_maps";
+  if (gSystem->mkdir(pdfDirectory.Data(), true) != 0 &&
+      gSystem->AccessPathName(pdfDirectory.Data())) {
+    Error("make_text_file_to_root_trks_shws", "Cannot create PDF directory: %s",
+          pdfDirectory.Data());
+    outputFile->Close();
+    return;
+  }
 
   int f_ievt, f_run, f_subrun, f_tpc_id, f_iplane, f_shw_id, f_unique_id;
   float f_shw_tot_energy;
@@ -695,6 +712,74 @@ void make_text_file_to_root_trks_shws(TString input, TString outtext, string typ
       }
     }
 
+    // One multipage PDF per accepted event, with one U/V/Z canvas per map.
+    {
+      const int nPages = 1 + n_tracks + n_showers;
+      const char *planeNames[3] = {"U", "V", "Z"};
+      double colorMin[3], colorMax[3];
+      for (int ip = 0; ip < 3; ++ip) {
+        colorMin[ip] = h2_evt2[ip][0]->GetMinimum();
+        colorMax[ip] = h2_evt2[ip][0]->GetMaximum();
+        if (colorMax[ip] <= colorMin[ip])
+          colorMax[ip] = colorMin[ip] + 1.;
+      }
+      const TString pdfPath = Form("%s/%s_entry_%d_event_%d.pdf", pdfDirectory.Data(),
+                                   pdfPrefix.Data(), ie, ievt);
+      Float_t oldPaperWidth, oldPaperHeight;
+      gStyle->GetPaperSize(oldPaperWidth, oldPaperHeight);
+      gStyle->SetPaperSize(26., 26. * 550 / 1800.);
+
+      for (int page = 0; page < nPages; ++page) {
+        int mapIndex = 0;
+        TString mapType = "Event map";
+        if (page > 0 && page <= n_tracks) {
+          const int trackIndex = page - 1;
+          mapIndex = n_showers + trackIndex + 1;
+          mapType = Form("Track %d map", trackIndex);
+        } else if (page > n_tracks) {
+          const int showerIndex = page - n_tracks - 1;
+          mapIndex = showerIndex + 1;
+          mapType = Form("Shower %d map", showerIndex);
+        }
+
+        TCanvas canvas(Form("pixelmaps_entry_%d_page_%d", ie, page),
+                       mapType.Data(), 1800, 550);
+        canvas.SetCanvasSize(1800, 550);
+        canvas.Divide(3, 1, 0.002, 0.002);
+        if (page == 0)
+          canvas.Print((pdfPath + "[").Data());
+
+        for (int ip = 0; ip < 3; ++ip) {
+          canvas.cd(ip + 1);
+          gPad->SetLeftMargin(0.12);
+          gPad->SetRightMargin(0.20);
+          gPad->SetBottomMargin(0.14);
+          gPad->SetTopMargin(0.12);
+          TH2D *map = h2_evt2[ip][mapIndex];
+          map->SetStats(false);
+          int nNonEmptyBins = 0;
+          for (int ix = 1; ix <= map->GetNbinsX(); ++ix) {
+            for (int iy = 1; iy <= map->GetNbinsY(); ++iy) {
+              if (map->GetBinContent(ix, iy) != 0.)
+                ++nNonEmptyBins;
+            }
+          }
+          map->SetTitle(Form("%s | %s plane | nhits=%d;Pixel wire;Pixel tick;Corrected charge",
+                             mapType.Data(), planeNames[ip], nNonEmptyBins));
+          map->SetMinimum(colorMin[ip]);
+          map->SetMaximum(colorMax[ip]);
+          map->GetZaxis()->SetLabelSize(0.03);
+          map->GetZaxis()->SetTitleSize(0.03);
+          map->GetZaxis()->SetTitleOffset(1.6);
+          map->Draw("COLZ");
+        }
+        canvas.Print(pdfPath.Data());
+        if (page == nPages - 1)
+          canvas.Print((pdfPath + "]").Data());
+      }
+      gStyle->SetPaperSize(oldPaperWidth, oldPaperHeight);
+    }
+
     // loop to print out text file
     int shw_id = 0; // for extra space
 
@@ -910,7 +995,7 @@ void make_text_file_to_root_trks_shws(TString input, TString outtext, string typ
     }
   }
   newtree->Write();
-  output->Close();
+  outputFile->Close();
   gtimer.Stop();
   cout << "Running time " << gtimer.CpuTime() << endl;
 }
