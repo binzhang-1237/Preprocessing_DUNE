@@ -1,13 +1,99 @@
 // add ievent log output
 // change adc charge cut from 0 to -500
 
+#include <array>
+
 #include "TCanvas.h"
+#include "TH2.h"
 #include "TPad.h"
 #include "TStyle.h"
 #include "TSystem.h"
 
 const int kMaxClst = 100;
 const int nParticleClasses = 11;
+
+// Draw one multipage PDF; maps are ordered event, showers, then tracks in each plane.
+// Histogram pointers are borrowed; the caller retains ownership.
+void SavePixelMapsPdf(const std::array<TH2D **, 3> &maps, int nTracks, int nShowers,
+                      int entry, int event, const TString &pdfPath) {
+  const int nPages = 1 + nTracks + nShowers;
+  const char *planeNames[3] = {"U", "V", "Z"};
+  double colorMin[3], colorMax[3];
+  for (int ip = 0; ip < 3; ++ip) {
+    colorMin[ip] = maps[ip][0]->GetMinimum();
+    colorMax[ip] = maps[ip][0]->GetMaximum();
+    if (colorMax[ip] <= colorMin[ip])
+      colorMax[ip] = colorMin[ip] + 1.;
+  }
+  Float_t oldPaperWidth, oldPaperHeight;
+  gStyle->GetPaperSize(oldPaperWidth, oldPaperHeight);
+  gStyle->SetPaperSize(26., 26. * 550 / 1800.);
+  TCanvas pdfControl(Form("pixelmaps_pdf_%d", entry), "PDF", 1800, 550);
+  pdfControl.Print((pdfPath + "[").Data());
+  int emptyTracks = 0;
+  int emptyShowers = 0;
+
+  for (int page = 0; page < nPages; ++page) {
+    int mapIndex = 0;
+    TString mapType = "Event map";
+    if (page > 0 && page <= nTracks) {
+      const int trackIndex = page - 1;
+      mapIndex = nShowers + trackIndex + 1;
+      mapType = Form("Track %d map", trackIndex);
+    } else if (page > nTracks) {
+      const int showerIndex = page - nTracks - 1;
+      mapIndex = showerIndex + 1;
+      mapType = Form("Shower %d map", showerIndex);
+    }
+
+    int nNonEmptyBins[3] = {0, 0, 0};
+    for (int ip = 0; ip < 3; ++ip) {
+      TH2D *map = maps[ip][mapIndex];
+      for (int ix = 1; ix <= map->GetNbinsX(); ++ix) {
+        for (int iy = 1; iy <= map->GetNbinsY(); ++iy) {
+          if (map->GetBinContent(ix, iy) != 0.)
+            ++nNonEmptyBins[ip];
+        }
+      }
+    }
+    if (page > 0 && nNonEmptyBins[0] == 0 && nNonEmptyBins[1] == 0 &&
+        nNonEmptyBins[2] == 0) {
+      if (page <= nTracks)
+        ++emptyTracks;
+      else
+        ++emptyShowers;
+      cout << "Event " << event << ": skip empty " << mapType << endl;
+      continue;
+    }
+
+    TCanvas canvas(Form("pixelmaps_entry_%d_page_%d", entry, page),
+                   mapType.Data(), 1800, 550);
+    canvas.SetCanvasSize(1800, 550);
+    canvas.Divide(3, 1, 0.002, 0.002);
+    for (int ip = 0; ip < 3; ++ip) {
+      canvas.cd(ip + 1);
+      gPad->SetLeftMargin(0.12);
+      gPad->SetRightMargin(0.20);
+      gPad->SetBottomMargin(0.14);
+      gPad->SetTopMargin(0.12);
+      TH2D *map = maps[ip][mapIndex];
+      map->SetStats(false);
+      map->SetTitle(Form("%s | %s plane | nhits=%d;Pixel wire;Pixel tick;Corrected charge",
+                         mapType.Data(), planeNames[ip], nNonEmptyBins[ip]));
+      map->SetMinimum(colorMin[ip]);
+      map->SetMaximum(colorMax[ip]);
+      map->GetZaxis()->SetLabelSize(0.03);
+      map->GetZaxis()->SetTitleSize(0.03);
+      map->GetZaxis()->SetTitleOffset(1.6);
+      map->Draw("COLZ");
+    }
+    canvas.Print(pdfPath.Data());
+  }
+  pdfControl.Print((pdfPath + "]").Data());
+  cout << "Event " << event << ": skipped empty maps: tracks=" << emptyTracks << "/"
+       << nTracks << ", showers=" << emptyShowers << "/" << nShowers << endl;
+  gStyle->SetPaperSize(oldPaperWidth, oldPaperHeight);
+}
 
 void make_text_file_to_root_trks_shws(TString input, TString output, string type = "nue") {
   bool cutNC = false;
@@ -712,74 +798,6 @@ void make_text_file_to_root_trks_shws(TString input, TString output, string type
       }
     }
 
-    // One multipage PDF per accepted event, with one U/V/Z canvas per map.
-    {
-      const int nPages = 1 + n_tracks + n_showers;
-      const char *planeNames[3] = {"U", "V", "Z"};
-      double colorMin[3], colorMax[3];
-      for (int ip = 0; ip < 3; ++ip) {
-        colorMin[ip] = h2_evt2[ip][0]->GetMinimum();
-        colorMax[ip] = h2_evt2[ip][0]->GetMaximum();
-        if (colorMax[ip] <= colorMin[ip])
-          colorMax[ip] = colorMin[ip] + 1.;
-      }
-      const TString pdfPath = Form("%s/%s_entry_%d_event_%d.pdf", pdfDirectory.Data(),
-                                   pdfPrefix.Data(), ie, ievt);
-      Float_t oldPaperWidth, oldPaperHeight;
-      gStyle->GetPaperSize(oldPaperWidth, oldPaperHeight);
-      gStyle->SetPaperSize(26., 26. * 550 / 1800.);
-
-      for (int page = 0; page < nPages; ++page) {
-        int mapIndex = 0;
-        TString mapType = "Event map";
-        if (page > 0 && page <= n_tracks) {
-          const int trackIndex = page - 1;
-          mapIndex = n_showers + trackIndex + 1;
-          mapType = Form("Track %d map", trackIndex);
-        } else if (page > n_tracks) {
-          const int showerIndex = page - n_tracks - 1;
-          mapIndex = showerIndex + 1;
-          mapType = Form("Shower %d map", showerIndex);
-        }
-
-        TCanvas canvas(Form("pixelmaps_entry_%d_page_%d", ie, page),
-                       mapType.Data(), 1800, 550);
-        canvas.SetCanvasSize(1800, 550);
-        canvas.Divide(3, 1, 0.002, 0.002);
-        if (page == 0)
-          canvas.Print((pdfPath + "[").Data());
-
-        for (int ip = 0; ip < 3; ++ip) {
-          canvas.cd(ip + 1);
-          gPad->SetLeftMargin(0.12);
-          gPad->SetRightMargin(0.20);
-          gPad->SetBottomMargin(0.14);
-          gPad->SetTopMargin(0.12);
-          TH2D *map = h2_evt2[ip][mapIndex];
-          map->SetStats(false);
-          int nNonEmptyBins = 0;
-          for (int ix = 1; ix <= map->GetNbinsX(); ++ix) {
-            for (int iy = 1; iy <= map->GetNbinsY(); ++iy) {
-              if (map->GetBinContent(ix, iy) != 0.)
-                ++nNonEmptyBins;
-            }
-          }
-          map->SetTitle(Form("%s | %s plane | nhits=%d;Pixel wire;Pixel tick;Corrected charge",
-                             mapType.Data(), planeNames[ip], nNonEmptyBins));
-          map->SetMinimum(colorMin[ip]);
-          map->SetMaximum(colorMax[ip]);
-          map->GetZaxis()->SetLabelSize(0.03);
-          map->GetZaxis()->SetTitleSize(0.03);
-          map->GetZaxis()->SetTitleOffset(1.6);
-          map->Draw("COLZ");
-        }
-        canvas.Print(pdfPath.Data());
-        if (page == nPages - 1)
-          canvas.Print((pdfPath + "]").Data());
-      }
-      gStyle->SetPaperSize(oldPaperWidth, oldPaperHeight);
-    }
-
     // loop to print out text file
     int shw_id = 0; // for extra space
 
@@ -986,6 +1004,12 @@ void make_text_file_to_root_trks_shws(TString input, TString output, string type
         } // ix wire#
       } // ip plane#
     } // iMap: pixel map
+
+    //draw pixel maps:
+    const TString pdfPath = Form("%s/%s_entry_%d_event_%d.pdf", pdfDirectory.Data(),
+                                 pdfPrefix.Data(), ie, ievt);
+    SavePixelMapsPdf({h2_evt2[0], h2_evt2[1], h2_evt2[2]}, n_tracks, n_showers,
+                     ie, ievt, pdfPath);
 
     for (int ip = 0; ip < 3; ip++) {
       for (int iMap = 0; iMap < 1 + n_showers + n_tracks; iMap++) {
