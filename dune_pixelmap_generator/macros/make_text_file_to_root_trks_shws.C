@@ -649,10 +649,10 @@ void make_text_file_to_root_trks_shws(TString input, TString outtext, string typ
     mean_wire[2] += xbins0 / 2 - shift;
 
     for (int ip = 0; ip < 3; ip++) {
-      for (int itrk = 0; itrk < 1 + n_showers + n_tracks; itrk++) {
-        h2_evt1[ip][itrk] = new TH2D(Form("h2_evt1_%d,%d", ip, itrk), ";Rel Wire; Rel Tick", xnbins,
+      for (int iMap = 0; iMap < 1 + n_showers + n_tracks; iMap++) {
+        h2_evt1[ip][iMap] = new TH2D(Form("h2_evt1_%d,%d", ip, iMap), ";Rel Wire; Rel Tick", xnbins,
                                      0, 2 * xmax, ynbins, 0, 2 * ymax);
-        h2_evt2[ip][itrk] = new TH2D(Form("h2_evt2_%d,%d", ip, itrk), ";Rel Wire; Rel Tick", xnbins,
+        h2_evt2[ip][iMap] = new TH2D(Form("h2_evt2_%d,%d", ip, iMap), ";Rel Wire; Rel Tick", xnbins,
                                      0, 2 * xmax, ynbins, 0, 2 * ymax);
       }
     }
@@ -698,17 +698,17 @@ void make_text_file_to_root_trks_shws(TString input, TString outtext, string typ
     // loop to print out text file
     int shw_id = 0; // for extra space
 
-    for (int itrk = 0; itrk < 1 + n_showers + n_tracks; itrk++) {
-      for (int ip = 0; ip < 3; ip++) {
+    for (int iMap = 0; iMap < 1 + n_showers + n_tracks; iMap++) {// iMap: pixel map
+      for (int ip = 0; ip < 3; ip++) {// ip plane#
         bool at_least_one = false;
-        for (int ix = 0; ix < xnbins; ix++) {
-          for (int iy = 0; iy < ynbins; iy++) {
+        for (int ix = 0; ix < xnbins; ix++) {// ix wire#
+          for (int iy = 0; iy < ynbins; iy++) {// iy tick#
             //int wire_pos = ix-xmax;
             //int time_pos = iy-ymax;
             int wire_pos = ix;
             int time_pos = iy;
-            float phit_charge = h2_evt1[ip][itrk]->GetBinContent(ix + 1, iy + 1);
-            float phit_corrcharge = h2_evt2[ip][itrk]->GetBinContent(ix + 1, iy + 1);
+            float phit_charge = h2_evt1[ip][iMap]->GetBinContent(ix + 1, iy + 1);
+            float phit_corrcharge = h2_evt2[ip][iMap]->GetBinContent(ix + 1, iy + 1);
             float phit_energy = 0;
             double shw_tot_energy = 0;
             double hit_tot_energy = 0;
@@ -821,7 +821,7 @@ void make_text_file_to_root_trks_shws(TString input, TString outtext, string typ
             ffCVNResult2Neutrons = (float)fCVNResult2Neutrons;
             ffCVNResultNNeutrons = (float)fCVNResultNNeutrons;
 
-            if (itrk == 0) {
+            if (iMap == 0) {
               f_is_leading_shower = -1;
               f_prong_tag = -1;
               f_prong_eng = -1;
@@ -842,8 +842,8 @@ void make_text_file_to_root_trks_shws(TString input, TString outtext, string typ
               f_prong_true_mom_px = -1;
               f_prong_true_mom_py = -1;
               f_prong_true_mom_pz = -1;
-            } else if (itrk > n_showers) {
-              int itag = itrk - n_showers - 1;
+            } else if (iMap > n_showers) {
+              int itag = iMap - n_showers - 1;
               f_is_leading_shower = -1;
               f_prong_tag = (int)itag;
               f_prong_eng = (float)all_trk_calmom[itag];
@@ -865,7 +865,7 @@ void make_text_file_to_root_trks_shws(TString input, TString outtext, string typ
               f_prong_true_mom_py = (float)all_trk_true_mom_py[itag];
               f_prong_true_mom_pz = (float)all_trk_true_mom_pz[itag];
             } else {
-              int itag = itrk - 1;
+              int itag = iMap - 1;
 
               if (itag == leadingShowerID) {
                 f_is_leading_shower = 1;
@@ -900,12 +900,12 @@ void make_text_file_to_root_trks_shws(TString input, TString outtext, string typ
           } // iy tick#
         } // ix wire#
       } // ip plane#
-    } // itrk
+    } // iMap: pixel map
 
     for (int ip = 0; ip < 3; ip++) {
-      for (int itrk = 0; itrk < 1 + n_showers + n_tracks; itrk++) {
-        delete h2_evt1[ip][itrk];
-        delete h2_evt2[ip][itrk];
+      for (int iMap = 0; iMap < 1 + n_showers + n_tracks; iMap++) {
+        delete h2_evt1[ip][iMap];
+        delete h2_evt2[ip][iMap];
       }
     }
   }
