@@ -571,6 +571,7 @@ private:
   std::string fRegCNNResult2Label;
 
   bool fSaveClustersShowersTracksAssnPFParticle;
+  bool fFixShowerTrackOverlapForOriginalMethod;
 
   int fGlobalWireMethod;
 
@@ -1048,6 +1049,7 @@ void recoestudy::RecoEnergyS::reconfigure(fhicl::ParameterSet const &pset) {
     fRegCNNResult2Label = pset.get<std::string>("RegCNNResult2Label");
   }
   fSaveClustersShowersTracksAssnPFParticle = pset.get<bool>("SaveClustersShowersTracksAssnPFParticle", false);
+  fFixShowerTrackOverlapForOriginalMethod = pset.get<bool>("FixShowerTrackOverlapForOriginalMethod", false);
 
   ievt = -999;
 
@@ -1210,6 +1212,7 @@ void recoestudy::RecoEnergyS::analyze(art::Event const &evt) {
   if (evt.getByLabel(fShowerModuleLabel, showerHandle))
     art::fill_ptr_vector(showers, showerHandle);
   art::FindManyP<recob::Cluster> fmshc(showerHandle, evt, fClusterModuleLabel);
+  art::FindManyP<recob::PFParticle> fmShowerToPFP(showerHandle, evt, fShowerModuleLabel);
   // Get the pmtrack out of the event record
   art::Handle<std::vector<recob::Track>> trackHandle1;
   std::vector<art::Ptr<recob::Track>> tracks_pmtrack;
@@ -1220,6 +1223,7 @@ void recoestudy::RecoEnergyS::analyze(art::Event const &evt) {
   std::vector<art::Ptr<recob::Track>> tracks_pand;
   if (evt.getByLabel(fTrackModuleLabel2, trackHandle2))
     art::fill_ptr_vector(tracks_pand, trackHandle2);
+  art::FindManyP<recob::PFParticle> fmTrackToPFP(trackHandle2, evt, fTrackModuleLabel2);
   //**************Orginal method to get clusters, showers, and tracks: ****************
 
 
@@ -2157,27 +2161,75 @@ void recoestudy::RecoEnergyS::analyze(art::Event const &evt) {
     hit_prong_pdg_mom[hitIt] = mom_pdg;
     if (showerHandle.isValid()) {
       if (fmshwhit.isValid() && fmshwhit.at(hitIt).size() != 0) {
-        hit_prong_tag[hitIt] = static_cast<int>(fmshwhit.at(hitIt)[0].key());
-        if (static_cast<int>(fmshwhit.at(hitIt)[0].key()) < kMaxClst) {
-          if (hit_peakT[hitIt] > max_shwtick[static_cast<int>(fmshwhit.at(hitIt)[0].key())])
-            max_shwtick[static_cast<int>(fmshwhit.at(hitIt)[0].key())] = hit_peakT[hitIt];
-          if (hit_peakT[hitIt] < min_shwtick[static_cast<int>(fmshwhit.at(hitIt)[0].key())])
-            min_shwtick[static_cast<int>(fmshwhit.at(hitIt)[0].key())] = hit_peakT[hitIt];
-          if (hit_rmsT[hitIt] > max_shwrms[static_cast<int>(fmshwhit.at(hitIt)[0].key())])
-            max_shwrms[static_cast<int>(fmshwhit.at(hitIt)[0].key())] = hit_rmsT[hitIt];
+        art::Ptr<recob::Shower> shower;
+        if(fFixShowerTrackOverlapForOriginalMethod){
+          if(fmShowerToPFP.isValid()){
+              for(const auto& shower_itr : fmshwhit.at(hitIt)){
+                if(!shower_itr.isNonnull() || !shower_itr.isAvailable()) continue;
+                bool isShower = false;
+                for(const auto& pfp : fmShowerToPFP.at(shower_itr.key())){
+                  if (!pfp.isNonnull() || !pfp.isAvailable()) continue;
+                    if (lar_pandora::LArPandoraHelper::IsShower(pfp)) {
+                        isShower = true;
+                        break;
+                    }
+                }
+                if(isShower){
+                  shower = shower_itr;
+                  break;
+                }
+              }
+          }
+        }else{
+            shower = fmshwhit.at(hitIt)[0];
+        }
+        if(shower.isNonnull() && shower.isAvailable()){
+            hit_prong_tag[hitIt] = static_cast<int>(shower.key());
+            if (static_cast<int>(shower.key()) < kMaxClst) {
+              if (hit_peakT[hitIt] > max_shwtick[static_cast<int>(shower.key())])
+                max_shwtick[static_cast<int>(shower.key())] = hit_peakT[hitIt];
+              if (hit_peakT[hitIt] < min_shwtick[static_cast<int>(shower.key())])
+                min_shwtick[static_cast<int>(shower.key())] = hit_peakT[hitIt];
+              if (hit_rmsT[hitIt] > max_shwrms[static_cast<int>(shower.key())])
+                max_shwrms[static_cast<int>(shower.key())] = hit_rmsT[hitIt];
+            }
         }
       }
     }
     if (trackHandle2.isValid()) {
       if (fmtrkhit.isValid() && fmtrkhit.at(hitIt).size() != 0) {
-        hit_prong_tag[hitIt] = kMaxClst + static_cast<int>(fmtrkhit.at(hitIt)[0].key());
-        if (static_cast<int>(fmtrkhit.at(hitIt)[0].key()) < kMaxClst) {
-          if (hit_peakT[hitIt] > max_trktick[static_cast<int>(fmtrkhit.at(hitIt)[0].key())])
-            max_trktick[static_cast<int>(fmtrkhit.at(hitIt)[0].key())] = hit_peakT[hitIt];
-          if (hit_peakT[hitIt] < min_trktick[static_cast<int>(fmtrkhit.at(hitIt)[0].key())])
-            min_trktick[static_cast<int>(fmtrkhit.at(hitIt)[0].key())] = hit_peakT[hitIt];
-          if (hit_rmsT[hitIt] > max_trkrms[static_cast<int>(fmtrkhit.at(hitIt)[0].key())])
-            max_trkrms[static_cast<int>(fmtrkhit.at(hitIt)[0].key())] = hit_rmsT[hitIt];
+        art::Ptr<recob::Track> track;
+        if(fFixShowerTrackOverlapForOriginalMethod){
+          if(fmTrackToPFP.isValid()){
+              for(const auto& track_itr : fmtrkhit.at(hitIt)){
+                if(!track_itr.isNonnull() || !track_itr.isAvailable()) continue;
+                bool isTrack = false;
+                for(const auto& pfp : fmTrackToPFP.at(track_itr.key())){
+                  if (!pfp.isNonnull() || !pfp.isAvailable()) continue;
+                    if (lar_pandora::LArPandoraHelper::IsTrack(pfp)) {
+                        isTrack = true;
+                        break;
+                    }
+                }
+                if(isTrack){
+                  track = track_itr;
+                  break;
+                }
+              }
+          }
+        }else{
+            track = fmtrkhit.at(hitIt)[0];
+        }
+        if(track.isNonnull() && track.isAvailable()){
+            hit_prong_tag[hitIt] = kMaxClst + static_cast<int>(track.key());
+            if (static_cast<int>(track.key()) < kMaxClst) {
+              if (hit_peakT[hitIt] > max_trktick[static_cast<int>(track.key())])
+                max_trktick[static_cast<int>(track.key())] = hit_peakT[hitIt];
+              if (hit_peakT[hitIt] < min_trktick[static_cast<int>(track.key())])
+                min_trktick[static_cast<int>(track.key())] = hit_peakT[hitIt];
+              if (hit_rmsT[hitIt] > max_trkrms[static_cast<int>(track.key())])
+                max_trkrms[static_cast<int>(track.key())] = hit_rmsT[hitIt];
+            }
         }
       }
     }

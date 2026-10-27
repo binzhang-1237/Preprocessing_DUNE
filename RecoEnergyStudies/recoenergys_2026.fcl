@@ -201,3 +201,4 @@ physics.producers.regcnnmap2b: @erase
 physics.producers.regcnneval2b: @erase
 
 physics.analyzers.recoEnergy.SaveClustersShowersTracksAssnPFParticle: true
+physics.analyzers.recoEnergy.FixShowerTrackOverlapForOriginalMethod: true
