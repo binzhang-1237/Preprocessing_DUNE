@@ -1465,9 +1465,6 @@ void recoestudy::RecoEnergyS::analyze(art::Event const &evt) {
   if (trackHandle1.isValid()) {
     n_tracks_pmtrack = tracks_pmtrack.size();
   }
-  if (trackHandle2.isValid()) {
-    n_tracks_pand = tracks_pand.size();
-  }
 
   //-----------------------------------------------------------------------------------------
   // Pandora Nu Vertex
@@ -1516,10 +1513,40 @@ void recoestudy::RecoEnergyS::analyze(art::Event const &evt) {
   // loop over for reconstructed track
   
   //Original method using trackHandle2 to get tracks:
-  if (trackHandle2.isValid()) {
+  const std::size_t nOriginalTracks = tracks_pand.size();
+  std::vector<int> trackFlag(nOriginalTracks, 0);
+  std::vector<int> trackSavedIndex(nOriginalTracks, -1);
 
-    for (int itrack = 0; itrack < n_tracks_pand; itrack++) {
-      art::Ptr<recob::Track> ptrack = tracks_pand.at(itrack);
+  if (trackHandle2.isValid()) {
+    for (std::size_t originalIndex = 0; originalIndex < nOriginalTracks; ++originalIndex) {
+      const auto &track = tracks_pand.at(originalIndex);
+      if (!track.isNonnull() || !track.isAvailable())
+        continue;
+      bool keepTrack = !fFixShowerTrackOverlapForOriginalMethod;
+
+      if (fFixShowerTrackOverlapForOriginalMethod && fmTrackToPFP.isValid()) {
+        for (const auto &pfp : fmTrackToPFP.at(track.key())) {
+          if (!pfp.isNonnull() || !pfp.isAvailable())
+            continue;
+          if (lar_pandora::LArPandoraHelper::IsTrack(pfp)) {
+            keepTrack = true;
+            break;
+          }
+        }
+      }
+
+      if (!keepTrack || n_tracks_pand >= kMax)
+        continue;
+      trackFlag[originalIndex] = 1;
+      trackSavedIndex[originalIndex] = n_tracks_pand;
+      ++n_tracks_pand;
+    }
+
+    for (std::size_t originalIndex = 0; originalIndex < nOriginalTracks; ++originalIndex) {
+      if (trackFlag[originalIndex] == 0)
+        continue;
+      const int itrack = trackSavedIndex[originalIndex];
+      art::Ptr<recob::Track> ptrack = tracks_pand.at(originalIndex);
       all_track_length[itrack] = ptrack->Length();
       all_track_startx[itrack] = ptrack->Start().X();
       all_track_starty[itrack] = ptrack->Start().Y();
@@ -1546,7 +1573,7 @@ void recoestudy::RecoEnergyS::analyze(art::Event const &evt) {
       dist_true = sqrt(dist_true);
 
       if (fmtrk.isValid()) {
-        std::vector<art::Ptr<recob::Hit>> vhit = fmtrk.at(itrack);
+        std::vector<art::Ptr<recob::Hit>> vhit = fmtrk.at(originalIndex);
         std::unordered_map<const simb::MCParticle *, double> mcEMap;
 
         for (size_t h = 0; h < vhit.size(); ++h) {
@@ -2218,38 +2245,26 @@ void recoestudy::RecoEnergyS::analyze(art::Event const &evt) {
     }
     if (trackHandle2.isValid()) {
       if (fmtrkhit.isValid() && fmtrkhit.at(hitIt).size() != 0) {
-        art::Ptr<recob::Track> track;
-        if(fFixShowerTrackOverlapForOriginalMethod){
-          if(fmTrackToPFP.isValid()){
-              for(const auto& track_itr : fmtrkhit.at(hitIt)){
-                if(!track_itr.isNonnull() || !track_itr.isAvailable()) continue;
-                bool isTrack = false;
-                for(const auto& pfp : fmTrackToPFP.at(track_itr.key())){
-                  if (!pfp.isNonnull() || !pfp.isAvailable()) continue;
-                    if (lar_pandora::LArPandoraHelper::IsTrack(pfp)) {
-                        isTrack = true;
-                        break;
-                    }
-                }
-                if(isTrack){
-                  track = track_itr;
-                  break;
-                }
-              }
+        for (const auto &track : fmtrkhit.at(hitIt)) {
+          if (!track.isNonnull() || !track.isAvailable())
+            continue;
+          const std::size_t originalIndex = track.key();
+          if (originalIndex >= trackFlag.size())
+            continue;
+          if (trackFlag[originalIndex] == 0)
+            continue;
+          const int trackIndex = trackSavedIndex[originalIndex];
+
+          hit_prong_tag[hitIt] = kMaxClst + trackIndex;
+          if (trackIndex < kMaxClst) {
+            if (hit_peakT[hitIt] > max_trktick[trackIndex])
+              max_trktick[trackIndex] = hit_peakT[hitIt];
+            if (hit_peakT[hitIt] < min_trktick[trackIndex])
+              min_trktick[trackIndex] = hit_peakT[hitIt];
+            if (hit_rmsT[hitIt] > max_trkrms[trackIndex])
+              max_trkrms[trackIndex] = hit_rmsT[hitIt];
           }
-        }else{
-            track = fmtrkhit.at(hitIt)[0];
-        }
-        if(track.isNonnull() && track.isAvailable()){
-            hit_prong_tag[hitIt] = kMaxClst + static_cast<int>(track.key());
-            if (static_cast<int>(track.key()) < kMaxClst) {
-              if (hit_peakT[hitIt] > max_trktick[static_cast<int>(track.key())])
-                max_trktick[static_cast<int>(track.key())] = hit_peakT[hitIt];
-              if (hit_peakT[hitIt] < min_trktick[static_cast<int>(track.key())])
-                min_trktick[static_cast<int>(track.key())] = hit_peakT[hitIt];
-              if (hit_rmsT[hitIt] > max_trkrms[static_cast<int>(track.key())])
-                max_trkrms[static_cast<int>(track.key())] = hit_rmsT[hitIt];
-            }
+          break;
         }
       }
     }

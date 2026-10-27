@@ -56,7 +56,7 @@ void SavePixelMapsPdf(const std::array<TH2D **, 3> &maps, int nTracks, int nShow
         }
       }
     }
-    if (page > 0 && nNonEmptyBins[0] == 0 && nNonEmptyBins[1] == 0 &&
+    if (false && page > 0 && nNonEmptyBins[0] == 0 && nNonEmptyBins[1] == 0 &&
         nNonEmptyBins[2] == 0) {
       if (page <= nTracks)
         ++emptyTracks;
