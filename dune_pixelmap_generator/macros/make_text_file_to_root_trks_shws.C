@@ -3,10 +3,12 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
+#include <fstream>
+#include <iomanip>
+#include <limits>
 #include <stdexcept>
 #include <vector>
-
-#include "TDirectory.h"
 
 #include "TCanvas.h"
 #include "TH2.h"
@@ -40,9 +42,6 @@ void SavePixelMapsPdf(const std::array<TH2D **, 3> &maps, int nTracks, int nShow
   gStyle->SetPaperSize(26., 26. * 550 / 1800.);
   TCanvas pdfControl(Form("pixelmaps_pdf_%d", entry), "PDF", 1800, 550);
   pdfControl.Print((pdfPath + "[").Data());
-  int emptyTracks = 0;
-  int emptyShowers = 0;
-  int emptyClusters = 0;
 
   for (int page = 0; page < nPages; ++page) {
     int mapIndex = 0;
@@ -74,18 +73,6 @@ void SavePixelMapsPdf(const std::array<TH2D **, 3> &maps, int nTracks, int nShow
         }
       }
     }
-    if (false && page > 0 && nNonEmptyBins[0] == 0 && nNonEmptyBins[1] == 0 &&
-        nNonEmptyBins[2] == 0) {
-      if (page <= nTracks)
-        ++emptyTracks;
-      else if (page <= nTracks + nShowers)
-        ++emptyShowers;
-      else
-        ++emptyClusters;
-      cout << "Event " << event << ": skip empty " << mapType << endl;
-      continue;
-    }
-
     TCanvas canvas(Form("pixelmaps_entry_%d_page_%d", entry, page),
                    mapType.Data(), 1800, 550);
     canvas.SetCanvasSize(1800, 550);
@@ -110,10 +97,92 @@ void SavePixelMapsPdf(const std::array<TH2D **, 3> &maps, int nTracks, int nShow
     canvas.Print(pdfPath.Data());
   }
   pdfControl.Print((pdfPath + "]").Data());
-  cout << "Event " << event << ": skipped empty maps: tracks=" << emptyTracks << "/"
-       << nTracks << ", showers=" << emptyShowers << "/" << nShowers
-       << ", clusters=" << emptyClusters << "/" << nClusters << endl;
   gStyle->SetPaperSize(oldPaperWidth, oldPaperHeight);
+}
+
+// Compare histogram contents only. Match track/shower maps one-to-one by the
+// smallest sum of absolute bin differences over U/V/Z; cluster maps are excluded.
+void ComparePixelMaps(const std::array<TH2D **, 3> &oldMaps, int nTracks, int nShowers,
+                      const std::array<TH2D **, 3> &newMaps, int nPfpTracks, int nPfpShowers,
+                      int entry, int event, std::ostream &differences) {
+  const char *types[3] = {"event", "track", "shower"};
+  const char *planes[3] = {"U", "V", "Z"};
+  const int oldCounts[3] = {1, nTracks, nShowers};
+  const int newCounts[3] = {1, nPfpTracks, nPfpShowers};
+  // Legacy storage: event/showers/tracks. PFP storage: event/tracks/showers/clusters.
+  const int oldOffsets[3] = {0, 1 + nShowers, 1};
+  const int newOffsets[3] = {0, 1, 1 + nPfpTracks};
+
+  int nDifferent = 0;
+  auto compare = [&](int type, int oldIndex, int newIndex) {
+    auto mapDescription = [&](bool original, int index) -> TString {
+      if (index < 0) return "no corresponding map";
+      TH2D *map = original ? oldMaps[0][oldOffsets[type] + index]
+                          : newMaps[0][newOffsets[type] + index];
+      TString title = map->GetTitle();
+      const auto separator = title.Index(" | ");
+      if (separator >= 0) title.Remove(separator);
+      return Form("%s map number %d (PDF title: %s)", types[type], index + 1, title.Data());
+    };
+    const TString description = Form("Event number %d (event ID: %d); original method: %s; new method: %s",
+        entry + 1, event, mapDescription(true, oldIndex).Data(),
+        mapDescription(false, newIndex).Data());
+    cout << "Checking: " << description << endl;
+    auto describe = [&]() -> std::ostream & {
+      ++nDifferent;
+      return differences << description << ". Reason for difference: ";
+    };
+    if (oldIndex < 0 || newIndex < 0) {
+      describe() << types[type] << " map counts differ: original method has " << oldCounts[type]
+                 << " maps, new method has " << newCounts[type] << " maps; this map has no counterpart."
+                 << std::endl;
+      return;
+    }
+    for (int ip = 0; ip < 3; ++ip) {
+      cout << "  Checking " << planes[ip] << " plane" << endl;
+      TH2D *a = oldMaps[ip][oldOffsets[type] + oldIndex];
+      TH2D *b = newMaps[ip][newOffsets[type] + newIndex];
+      int first = -1, nBins = 0;
+      double absolute = 0.;
+      for (int bin = 0; bin < a->GetNcells(); ++bin) {
+        if (a->GetBinContent(bin) != b->GetBinContent(bin)) {
+          if (first < 0) first = bin;
+          ++nBins;
+          absolute += std::abs(a->GetBinContent(bin) - b->GetBinContent(bin));
+        }
+      }
+      if (nBins > 0)
+        describe() << planes[ip] << " plane bin contents differ; number of differing bins: " << nBins
+                   << "; sum of absolute differences: " << absolute << "; ROOT index of first differing bin: " << first
+                   << "; original value: " << a->GetBinContent(first) << "; new value: " << b->GetBinContent(first)
+                   << std::endl;
+    }
+  };
+
+  for (int type = 0; type < 3; ++type) {
+    std::vector<bool> used(newCounts[type], false);
+    for (int oldIndex = 0; oldIndex < oldCounts[type]; ++oldIndex) {
+      int best = -1;
+      double bestScore = std::numeric_limits<double>::infinity();
+      for (int candidate = 0; candidate < newCounts[type]; ++candidate) {
+        if (used[candidate]) continue;
+        double score = 0.;
+        for (int ip = 0; ip < 3; ++ip) {
+          TH2D *a = oldMaps[ip][oldOffsets[type] + oldIndex];
+          TH2D *b = newMaps[ip][newOffsets[type] + candidate];
+          for (int bin = 0; bin < a->GetNcells(); ++bin)
+            score += std::abs(a->GetBinContent(bin) - b->GetBinContent(bin));
+        }
+        if (score < bestScore) { bestScore = score; best = candidate; }
+        if (score == 0.) break;
+      }
+      if (best >= 0) used[best] = true;
+      compare(type, oldIndex, best);
+    }
+    for (int candidate = 0; candidate < newCounts[type]; ++candidate)
+      if (!used[candidate]) compare(type, -1, candidate);
+  }
+  cout << "Event " << event << ": comparison finished, differences=" << nDifferent << endl;
 }
 
 void make_text_file_to_root_trks_shws(TString input, TString output, string type = "nue") {
@@ -716,6 +785,15 @@ void make_text_file_to_root_trks_shws(TString input, TString output, string type
   std::cout << "Actual Pixel Map Converage (wire,tick): " << xbins0 << " , " << ybins0 << std::endl;
   std::cout << "Pixel Map Size (wire,tick): " << xnbins << " , " << ynbins << std::endl;
 
+  const TString comparisonPath = TString(gSystem->DirName(output.Data())) + "/" +
+                                 pdfPrefix + "_comparison.txt";
+  std::ofstream comparisonReport(comparisonPath.Data());
+  if (!comparisonReport)
+    throw std::runtime_error("Cannot open pixelmap comparison file");
+  comparisonReport << std::setprecision(17)
+                   << "Only event, track and shower maps are compared. Map numbers indicate the order "
+                      "within each type after filtering, starting at 1. PDF titles are shown in parentheses.\n";
+  cout << "Comparison differences: " << comparisonPath << endl;
   cout << "Start Loop" << endl;
   int entries = ch->GetEntries();
   cout << "Entries: " << entries << endl;
@@ -1130,22 +1208,16 @@ void make_text_file_to_root_trks_shws(TString input, TString output, string type
       SavePixelMapsPdf({h2_evt3[0].data(), h2_evt3[1].data(), h2_evt3[2].data()}, nPfpTracks,
                        nPfpShowers, ie, ievt, pfpPdfPath, nPfpClusters, true, pfpMapLabels);
     }
+    //compare the pixel maps created by the two methods:
+    if (hasPfpHits)
+      ComparePixelMaps({h2_evt2[0], h2_evt2[1], h2_evt2[2]}, n_tracks, n_showers,
+                       {h2_evt3[0].data(), h2_evt3[1].data(), h2_evt3[2].data()},
+                       nPfpTracks, nPfpShowers, ie, ievt, comparisonReport);
 
-    // Save the new-method histograms in ROOT and release them.
-    if (hasPfpHits) {
-      TDirectory *pfpDirectory = outputFile->GetDirectory("pfp_pixelmaps");
-      if (!pfpDirectory)
-        pfpDirectory = outputFile->mkdir("pfp_pixelmaps");
-      TDirectory *eventDirectory = pfpDirectory->mkdir(Form("entry_%d_event_%d", ie, ievt));
-      eventDirectory->cd();
-      for (int ip = 0; ip < 3; ++ip) {
-        for (TH2D *map : h2_evt3[ip]) {
-          map->Write();
-          delete map;
-        }
-      }
-      outputFile->cd();
-    }
+    // New-method maps are used only for PDF plotting and comparison.
+    for (const auto &planeMaps : h2_evt3)
+      for (TH2D *map : planeMaps)
+        delete map;
 
     for (int ip = 0; ip < 3; ip++) {
       for (int iMap = 0; iMap < 1 + n_showers + n_tracks; iMap++) {
