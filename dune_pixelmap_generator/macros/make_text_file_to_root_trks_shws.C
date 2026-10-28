@@ -6,7 +6,6 @@
 #include <cmath>
 #include <fstream>
 #include <iomanip>
-#include <limits>
 #include <stdexcept>
 #include <vector>
 
@@ -100,8 +99,7 @@ void SavePixelMapsPdf(const std::array<TH2D **, 3> &maps, int nTracks, int nShow
   gStyle->SetPaperSize(oldPaperWidth, oldPaperHeight);
 }
 
-// Compare histogram contents only. Match track/shower maps one-to-one by the
-// smallest sum of absolute bin differences over U/V/Z; cluster maps are excluded.
+// Compare counts first, then compare maps in order when counts agree. Exclude clusters.
 void ComparePixelMaps(const std::array<TH2D **, 3> &oldMaps, int nTracks, int nShowers,
                       const std::array<TH2D **, 3> &newMaps, int nPfpTracks, int nPfpShowers,
                       int entry, int event, std::ostream &differences) {
@@ -109,91 +107,59 @@ void ComparePixelMaps(const std::array<TH2D **, 3> &oldMaps, int nTracks, int nS
   const char *planes[3] = {"U", "V", "Z"};
   const int oldCounts[3] = {1, nTracks, nShowers};
   const int newCounts[3] = {1, nPfpTracks, nPfpShowers};
-  // Legacy storage: event/showers/tracks. PFP storage: event/tracks/showers/clusters.
+  // Original storage: event/showers/tracks. New storage: event/tracks/showers/clusters.
   const int oldOffsets[3] = {0, 1 + nShowers, 1};
   const int newOffsets[3] = {0, 1, 1 + nPfpTracks};
 
-  int nDifferent = 0;
-  auto compare = [&](int type, int oldIndex, int newIndex) {
-    auto mapDescription = [&](bool original, int index) -> TString {
-      if (index < 0) return "no corresponding map";
-      TH2D *map = original ? oldMaps[0][oldOffsets[type] + index]
-                          : newMaps[0][newOffsets[type] + index];
-      TString title = map->GetTitle();
-      const auto separator = title.Index(" | ");
-      if (separator >= 0) title.Remove(separator);
-      return Form("%s map number %d (PDF title: %s)", types[type], index + 1, title.Data());
-    };
-    const TString description = Form("Event number %d (event ID: %d); original method: %s; new method: %s",
-        entry + 1, event, mapDescription(true, oldIndex).Data(),
-        mapDescription(false, newIndex).Data());
-    cout << "Checking: " << description << endl;
-    auto describe = [&]() -> std::ostream & {
-      ++nDifferent;
-      return differences << description << ". Reason for difference: ";
-    };
-    if (oldIndex < 0 || newIndex < 0) {
-      describe() << types[type] << " map counts differ: original method has " << oldCounts[type]
-                 << " maps, new method has " << newCounts[type] << " maps; this map has no counterpart. "
-                 << "Existing " << (oldIndex < 0 ? "new-method" : "original-method")
-                 << " map nhits (non-empty bins):";
-      for (int ip = 0; ip < 3; ++ip) {
-        const TH2D *map = oldIndex < 0 ? newMaps[ip][newOffsets[type] + newIndex]
-                                      : oldMaps[ip][oldOffsets[type] + oldIndex];
-        int nhits = 0;
-        for (int ix = 1; ix <= map->GetNbinsX(); ++ix)
-          for (int iy = 1; iy <= map->GetNbinsY(); ++iy)
-            if (map->GetBinContent(ix, iy) != 0.) ++nhits;
-        differences << " " << planes[ip] << "=" << nhits;
-      }
-      differences << std::endl;
-      return;
-    }
-    for (int ip = 0; ip < 3; ++ip) {
-      cout << "  Checking " << planes[ip] << " plane" << endl;
-      TH2D *a = oldMaps[ip][oldOffsets[type] + oldIndex];
-      TH2D *b = newMaps[ip][newOffsets[type] + newIndex];
-      int first = -1, nBins = 0;
-      double absolute = 0.;
-      for (int bin = 0; bin < a->GetNcells(); ++bin) {
-        if (a->GetBinContent(bin) != b->GetBinContent(bin)) {
-          if (first < 0) first = bin;
-          ++nBins;
-          absolute += std::abs(a->GetBinContent(bin) - b->GetBinContent(bin));
-        }
-      }
-      if (nBins > 0)
-        describe() << planes[ip] << " plane bin contents differ; number of differing bins: " << nBins
-                   << "; sum of absolute differences: " << absolute << "; ROOT index of first differing bin: " << first
-                   << "; original value: " << a->GetBinContent(first) << "; new value: " << b->GetBinContent(first)
-                   << std::endl;
-    }
-  };
-
   for (int type = 0; type < 3; ++type) {
-    std::vector<bool> used(newCounts[type], false);
-    for (int oldIndex = 0; oldIndex < oldCounts[type]; ++oldIndex) {
-      int best = -1;
-      double bestScore = std::numeric_limits<double>::infinity();
-      for (int candidate = 0; candidate < newCounts[type]; ++candidate) {
-        if (used[candidate]) continue;
-        double score = 0.;
+    cout << "Checking event number " << entry + 1 << " (event ID: " << event << "), "
+         << types[type] << " maps: original=" << oldCounts[type]
+         << ", new=" << newCounts[type] << endl;
+    if (oldCounts[type] != newCounts[type]) {
+      differences << "Event number " << entry + 1 << " (event ID: " << event << "), "
+                  << types[type] << " map counts differ: original method has " << oldCounts[type]
+                  << " maps, new method has " << newCounts[type] << " maps." << endl;
+      const bool newHasMore = newCounts[type] > oldCounts[type];
+      const int commonCount = std::min(oldCounts[type], newCounts[type]);
+      const int largerCount = std::max(oldCounts[type], newCounts[type]);
+      // Report the remaining maps in the longer list, using their stored order.
+      for (int index = commonCount; index < largerCount; ++index) {
+        differences << "  " << (newHasMore ? "New" : "Original") << " method: "
+                    << types[type] << " map number " << index + 1
+                    << "; other method: no corresponding map. nhits (non-empty bins):";
         for (int ip = 0; ip < 3; ++ip) {
-          TH2D *a = oldMaps[ip][oldOffsets[type] + oldIndex];
-          TH2D *b = newMaps[ip][newOffsets[type] + candidate];
-          for (int bin = 0; bin < a->GetNcells(); ++bin)
-            score += std::abs(a->GetBinContent(bin) - b->GetBinContent(bin));
+          TH2D *map = newHasMore ? newMaps[ip][newOffsets[type] + index]
+                                : oldMaps[ip][oldOffsets[type] + index];
+          int nhits = 0;
+          for (int ix = 1; ix <= map->GetNbinsX(); ++ix)
+            for (int iy = 1; iy <= map->GetNbinsY(); ++iy)
+              if (map->GetBinContent(ix, iy) != 0.) ++nhits;
+          differences << " " << planes[ip] << "=" << nhits;
         }
-        if (score < bestScore) { bestScore = score; best = candidate; }
-        if (score == 0.) break;
+        differences << endl;
       }
-      if (best >= 0) used[best] = true;
-      compare(type, oldIndex, best);
+      continue;
     }
-    for (int candidate = 0; candidate < newCounts[type]; ++candidate)
-      if (!used[candidate]) compare(type, -1, candidate);
+
+    for (int index = 0; index < oldCounts[type]; ++index) {
+      for (int ip = 0; ip < 3; ++ip) {
+        cout << "  Checking " << types[type] << " map number " << index + 1
+             << ", " << planes[ip] << " plane" << endl;
+        TH2D difference(*oldMaps[ip][oldOffsets[type] + index]);
+        difference.SetDirectory(nullptr);
+        difference.Add(newMaps[ip][newOffsets[type] + index], -1.);
+        // Absolute differences prevent positive and negative bins from cancelling.
+        double absoluteDifference = 0.;
+        for (int bin = 0; bin < difference.GetNcells(); ++bin)
+          absoluteDifference += std::abs(difference.GetBinContent(bin));
+        if (absoluteDifference != 0.)
+          differences << "Event number " << entry + 1 << " (event ID: " << event << "), "
+                      << types[type] << " map number " << index + 1 << ", " << planes[ip]
+                      << " plane: bin contents differ; sum of absolute differences="
+                      << absoluteDifference << endl;
+      }
+    }
   }
-  cout << "Event " << event << ": comparison finished, differences=" << nDifferent << endl;
 }
 
 struct PfpPixelMaps {
@@ -870,7 +836,7 @@ void make_text_file_to_root_trks_shws(TString input, TString output, string type
     throw std::runtime_error("Cannot open pixelmap comparison file");
   comparisonReport << std::setprecision(17)
                    << "Only event, track and shower maps are compared. Map numbers indicate the order "
-                      "within each type after filtering, starting at 1. PDF titles are shown in parentheses.\n";
+                      "within each type after filtering, starting at 1. When counts differ, remaining maps in the longer list are reported.\n";
   cout << "Comparison differences: " << comparisonPath << endl;
   cout << "Start Loop" << endl;
   int entries = ch->GetEntries();
