@@ -1,0 +1,56 @@
+# Linux x86_64; preprocess2.py plus the sparse notebook and all its debug imports.
+# Create: conda env create -f environment_preprocessing.yml
+# Supplied package-list versions are retained except where explicitly noted.
+prefix: /mnt/ironwolf_14t2/users/binzhang/local/dune-preprocessing
+channels:
+  - pytorch
+  - conda-forge
+  - nodefaults
+dependencies:
+  - python=3.9.18
+  - pip=22.0.2
+  - setuptools=59.6.0
+  - wheel=0.37.1
+
+  # Data conversion; versions from the supplied list.
+  - numpy=1.26.4
+  - h5py=3.6.0
+  - pytables=3.7.0  # Conda package name; Python imports it as tables.
+  - numexpr=2.8.1  # PyTables dependency; version from the supplied list.
+  - numba=0.58.1
+  - llvmlite=0.41.1
+  - joblib=1.3.2
+  - sparse=0.14.0
+  - scipy=1.11.4
+
+  # Plotting and progress display.
+  - matplotlib-base=3.5.1  # Same matplotlib version, without unused Qt GUI packages.
+  - tqdm=4.66.1
+  - seaborn-base=0.13.2  # Not in the supplied list; explicitly selected.
+  - cmasher=1.8.0  # Not in the supplied list; explicitly selected.
+  - pandas=2.2.2  # Seaborn dependency; version from the supplied list.
+
+  # Notebook interface; versions from the supplied list.
+  - jupyterlab=4.0.11
+  - ipykernel=6.29.0
+
+  # SparseTensor debugging uses CPU only; no NVIDIA driver/CUDA dependency.
+  - pytorch::pytorch=2.0.1
+  - pytorch::cpuonly=2.0
+
+  # Build dependencies for MinkowskiEngine (not specified in the supplied list).
+  - cxx-compiler=1.7.0
+  - openblas=0.3.23
+  - ninja=1.11.1
+  - pip:
+      # pip 22 supports these setup.py flags. Conda installs torch before this step.
+      - "MinkowskiEngine==0.5.4 --global-option=--cpu_only --global-option=--blas=openblas --global-option=--blas_include_dirs=${CONDA_PREFIX}/include"
+variables:
+  CONDA_PKGS_DIRS: /mnt/ironwolf_14t2/users/binzhang/local/conda-pkgs
+  TMPDIR: /mnt/ironwolf_14t2/users/binzhang/local/tmp
+  # Keep ~/.local packages and external Python modules out of this environment.
+  PYTHONNOUSERSITE: "1"
+  PYTHONPATH: ""
+  # Limit memory usage when compiling MinkowskiEngine inside this environment.
+  MAX_JOBS: "2"
+  OMP_NUM_THREADS: "2"
