@@ -37,16 +37,7 @@ cpp_quote() {
 printf 'Input=%s\nOutput=%s\nType=%s\n' "$INPUT_FILE" "$OUTPUT_FILE" "$TYPE"
 root -l -b -q "$MACRO($(cpp_quote "$INPUT_FILE"),$(cpp_quote "$OUTPUT_FILE"),$(cpp_quote "$TYPE"))"
 
-# Convert the pixelmap tree using the isolated Python environment.
+# Convert directly to the dataset name expected by preprocess2.py.
 HDF5_FILE="${OUTPUT_FILE%.*}.h5"
 printf 'HDF5=%s\n' "$HDF5_FILE"
-"$HOME/local/root2hdf5/bin/root2hdf5" -i "$OUTPUT_FILE" -o "$HDF5_FILE" -t pixelmap
-
-# Use the dataset name expected by preprocess2.py; the ROOT tree remains pixelmap.
-"$HOME/local/root2hdf5/bin/python" - "$HDF5_FILE" <<'PYTHON'
-import sys
-import h5py
-
-with h5py.File(sys.argv[1], "r+") as output:
-    output.move("pixelmap", "ArrayOfStructures")
-PYTHON
+"$HOME/local/root2hdf5/bin/root2hdf5" -i "$OUTPUT_FILE" -o "$HDF5_FILE" -t ArrayOfStructures

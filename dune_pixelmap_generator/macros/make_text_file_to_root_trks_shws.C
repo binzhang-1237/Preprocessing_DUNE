@@ -247,7 +247,7 @@ void make_text_file_to_root_trks_shws(TString input, TString output, string type
   ch->SetMakeClass(1);
 
   TFile *outputFile = new TFile(output.Data(), "recreate");
-  TTree *newtree = new TTree("pixelmap", "pixelmap");
+  TTree *newtree = new TTree("ArrayOfStructures", "ArrayOfStructures");
   outputFile->SetCompressionLevel(9);
   cout << outputFile->GetCompressionAlgorithm() << endl;
 
