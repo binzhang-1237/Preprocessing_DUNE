@@ -35,4 +35,9 @@ cpp_quote() {
 }
 
 printf 'Input=%s\nOutput=%s\nType=%s\n' "$INPUT_FILE" "$OUTPUT_FILE" "$TYPE"
-exec root -l -b -q "$MACRO($(cpp_quote "$INPUT_FILE"),$(cpp_quote "$OUTPUT_FILE"),$(cpp_quote "$TYPE"))"
+root -l -b -q "$MACRO($(cpp_quote "$INPUT_FILE"),$(cpp_quote "$OUTPUT_FILE"),$(cpp_quote "$TYPE"))"
+
+# Convert the pixelmap tree using the isolated Python environment.
+HDF5_FILE="${OUTPUT_FILE%.*}.h5"
+printf 'HDF5=%s\n' "$HDF5_FILE"
+exec "$HOME/local/root2hdf5/bin/root2hdf5" -i "$OUTPUT_FILE" -o "$HDF5_FILE" -t pixelmap
