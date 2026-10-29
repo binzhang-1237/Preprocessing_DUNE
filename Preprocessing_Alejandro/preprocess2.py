@@ -63,7 +63,9 @@ def main(fout,fins):
     prong_start_indices = np.array(prong_start_indices)
     
     if len(events) != len(evt_start_indices):
-        continue
+        fout.close()
+        sys.exit(f"Error in {fin}: found {len(events)} events but "
+                 f"{len(evt_start_indices)} event start indices")
     
     prong_start_tags = prong_tags[prong_start_indices]
     prong_pdg = df['prong_true_pdg'][prong_start_indices]
