@@ -211,7 +211,7 @@ def main(fout,fins):
         
     if fin == fins[0]:
         fout.create_earray(root, "cvnmap_index", obj=cvnmap_index)
-        fout.create_earray(root, "cvnmap_value", obj=df['wire_charge'][evt_image_indices])
+        fout.create_earray(root, "cvnmap_value", obj=df['wire_corrcharge'][evt_image_indices])
         fout.create_earray(root, "input_png3d_pad_mask", obj=np.array(png_pad_mask))
         fout.create_earray(root, "mc.png_label", obj=np.array(png_label))
         fout.create_earray(root, "mc.png_label_split_photons", obj=np.array(png_label_split_photons))
@@ -222,7 +222,7 @@ def main(fout,fins):
         fout.create_earray(root, "input_png3d", obj=np.array(png_input))
     else:
         getattr(root, "cvnmap_index").append(cvnmap_index)
-        getattr(root, "cvnmap_value").append(df['wire_charge'][evt_image_indices])
+        getattr(root, "cvnmap_value").append(df['wire_corrcharge'][evt_image_indices])
         getattr(root, "input_png3d_pad_mask").append(png_pad_mask)
         getattr(root, "mc.png_label").append(png_label)
         getattr(root, "mc.png_label_split_photons").append(png_label_split_photons)
@@ -244,10 +244,10 @@ def main(fout,fins):
     
     if fin == fins[0]:
         fout.create_earray(root, "png_cvnmap_index", obj=png_cvnmap_index)
-        fout.create_earray(root, "png_cvnmap_value", obj=df['wire_charge'][png_image_indices])
+        fout.create_earray(root, "png_cvnmap_value", obj=df['wire_corrcharge'][png_image_indices])
     else:
         getattr(root, "png_cvnmap_index").append(png_cvnmap_index)
-        getattr(root, "png_cvnmap_value").append(df['wire_charge'][png_image_indices])
+        getattr(root, "png_cvnmap_value").append(df['wire_corrcharge'][png_image_indices])
     
     
     

@@ -2072,6 +2072,11 @@ void recoestudy::RecoEnergyS::analyze(art::Event const &evt) {
     art::Ptr<recob::Hit> hit = hits.at(hitIt);
     eventHitIndex.emplace(hit, static_cast<int>(hitIt));
 
+    // This MC sample is configured with event t0 and the TPC readout start at zero,
+    // so SampleRate * PeakTime() is used as the drift-time estimate (ns).
+    // For real data, determine t0 from the matched liquid-argon scintillation flash,
+    // align the optical and TPC clocks, and subtract t0 and readout/response offsets
+    // before applying this electron-lifetime correction.
     double correctedHitCharge = (hit->Integral() * TMath::Exp((SampleRate * hit->PeakTime()) /
                                                               (detprop->ElectronLifetime() * 1e3)));
     switch (hit->WireID().Plane) {
@@ -2611,6 +2616,9 @@ void recoestudy::RecoEnergyS::analyze(art::Event const &evt) {
           //unsigned int localWire = hits.at(hitIt)->WireID().Wire;
           //unsigned int localPlane = hits.at(hitIt)->WireID().Plane;
           double globalTDC = (double)j;
+          // As for hit charge above, the current MC assumes t0 = readout start = 0.
+          // For real data, reference the sample time to the matched LAr flash t0
+          // after aligning clocks and accounting for readout/response offsets.
           double correctedadc =
               (signal[j] * TMath::Exp((SampleRate * j) / (detprop->ElectronLifetime() * 1e3)));
 
